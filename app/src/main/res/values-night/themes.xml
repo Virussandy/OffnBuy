@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.OffnBuy" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="SplashScreen" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_app_icon</item>
+        <item name="windowSplashScreenAnimationDuration">200</item>
+        <item name="postSplashScreenTheme">@style/Theme.OffnBuy</item>
+        <item name="windowSplashScreenBackground">@android:color/background_dark</item>
+    </style>
+</resources>
