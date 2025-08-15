@@ -46,18 +46,13 @@ class NotificationViewModel(
         viewModelScope.launch {
             if (sharedPrefManager.isFirstTimeRun()) {
                 val initialNoification = repository.getInitialNotifications()
-                val allDealIds = initialNoification.map { it.deal.deal_id }
+                val allDealIds = initialNoification.map { it.deal_id }
                 allDealIds.forEach { id ->
                     sharedPrefManager.addSeenDealId(id)
                 }
 
                 val dealsForUi = initialNoification.map {
-                    NotifiedDeal(
-                        deal = it.deal,
-                        isSeen = true,
-                        deal_id = it.deal.deal_id,
-                        timestamp = it.timestamp
-                    )
+                    it.copy(isSeen = true)
                 }
 
                 _notifiedDeals.value = dealsForUi.sortedByDescending { it.timestamp }
@@ -74,58 +69,49 @@ class NotificationViewModel(
     private fun attachRealtimeListeners(){
         repository.listenForNewNotifications(
             onAdded = { addedDeal ->
-                val newDeal = addedDeal.deal
-                val timestamp = addedDeal.timestamp
+                if (_notifiedDeals.value.any { it.deal.deal_id == addedDeal.deal_id }) return@listenForNewNotifications
 
-                if (_notifiedDeals.value.any { it.deal.deal_id == newDeal.deal_id }) return@listenForNewNotifications
-
-                val isSeen = sharedPrefManager.getSeenDealsIds().contains(newDeal.deal_id)
+                val isSeen = sharedPrefManager.getSeenDealsIds().contains(addedDeal.deal_id)
 
                 _notifiedDeals.update { current ->
-                    (listOf(NotifiedDeal(deal = newDeal, isSeen = isSeen, newDeal.deal_id, timestamp = timestamp)) + current).sortedByDescending { it.timestamp }
+                    (listOf(addedDeal.copy(isSeen = isSeen)) + current).sortedByDescending { it.timestamp }
                 }
 
                 _unseenCount.value = _notifiedDeals.value.count { !it.isSeen }
 
-                if (!isSeen && alreadyNotified.add(newDeal.deal_id)) {
+                if (!isSeen && alreadyNotified.add(addedDeal.deal_id)) {
                     if (ActivityCompat.checkSelfPermission(
                             getApplication(),
                             Manifest.permission.POST_NOTIFICATIONS
                         ) == PackageManager.PERMISSION_GRANTED
                     ) {
-                        showSystemNotification(getApplication(), newDeal)
+                        showSystemNotification(getApplication(), addedDeal.deal)
                     }
                 }
             },
 
             onChanged = { updatedDeal ->
-
-                val newDeal = updatedDeal.deal
-                val timestamp = updatedDeal.timestamp
-
                 _notifiedDeals.update { list ->
                     list.map {
-                        if (it.deal.deal_id == newDeal.deal_id) it.copy(deal = newDeal, timestamp = timestamp)
+                        if (it.deal.deal_id == updatedDeal.deal_id) updatedDeal
                         else it
                     }.sortedByDescending { it.timestamp }
                 }
             },
 
-            onRemoved = { removedDealId ->
+            onRemoved = { removedDeal ->
                 _notifiedDeals.update { list ->
-                    list.filter { it.deal.deal_id != removedDealId.deal.deal_id }
+                    list.filter { it.deal.deal_id != removedDeal.deal_id }
                 }
-                alreadyNotified.remove(removedDealId.deal.deal_id)
+                alreadyNotified.remove(removedDeal.deal_id)
                 _unseenCount.value = _notifiedDeals.value.count { !it.isSeen }
             },
 
             onMoved = { movedDeal ->
-                val newDeal = movedDeal.deal
-                val timestamp = movedDeal.timestamp
                 _notifiedDeals.update { list ->
-                    val updatedList = list.filter { it.deal.deal_id != newDeal.deal_id }
-                    val isSeen = sharedPrefManager.getSeenDealsIds().contains(newDeal.deal_id)
-                    (listOf(NotifiedDeal(newDeal, isSeen, deal_id = newDeal.deal_id, timestamp = timestamp)) + updatedList).sortedByDescending { it.timestamp }
+                    val updatedList = list.filter { it.deal.deal_id != movedDeal.deal_id }
+                    val isSeen = sharedPrefManager.getSeenDealsIds().contains(movedDeal.deal_id)
+                    (listOf(movedDeal.copy(isSeen = isSeen)) + updatedList).sortedByDescending { it.timestamp }
                 }
             }
         )
@@ -134,10 +120,10 @@ class NotificationViewModel(
     private fun loadSeenDealIds(){
         val seenDealIds = sharedPrefManager.getSeenDealsIds()
         _notifiedDeals.update {
-            list -> list.map {
-                if (seenDealIds.contains(it.deal.deal_id)) it.copy(isSeen = true)
-                else it
-            }.sortedByDescending { it.timestamp }
+                list -> list.map {
+            if (seenDealIds.contains(it.deal.deal_id)) it.copy(isSeen = true)
+            else it
+        }.sortedByDescending { it.timestamp }
         }
         _unseenCount.value = _notifiedDeals.value.count{ !it.isSeen}
     }
@@ -160,7 +146,7 @@ class NotificationViewModel(
         viewModelScope.launch {
             val allDealIds = _notifiedDeals.value.map { it.deal.deal_id }
             allDealIds.forEach {
-                it -> sharedPrefManager.addSeenDealId(it)
+                    it -> sharedPrefManager.addSeenDealId(it)
             }
         }
 
@@ -195,5 +181,3 @@ class NotificationViewModel(
         NotificationManagerCompat.from(context).notify(deal.deal_id.hashCode(), builder.build())
     }
 }
-
-

@@ -8,7 +8,6 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.firestore.FirebaseFirestore
 import com.ozonic.offnbuy.model.DealItem
-import com.ozonic.offnbuy.model.NotificationItem
 import com.ozonic.offnbuy.model.NotifiedDeal
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -18,18 +17,18 @@ class NotificationsRepository {
     private val dbRef = FirebaseDatabase.getInstance().getReference("Notifications")
     private val db = FirebaseFirestore.getInstance()
 
-    suspend fun getInitialNotifications(): List<NotificationItem> = suspendCoroutine { continuation ->
+    suspend fun getInitialNotifications(): List<NotifiedDeal> = suspendCoroutine { continuation ->
         dbRef.addListenerForSingleValueEvent(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val notificationList = mutableListOf<NotificationItem>()
+                val notificationList = mutableListOf<NotifiedDeal>()
                 snapshot.children.forEach { childSnapshot ->
                     val notifiedDeal = childSnapshot.getValue(NotifiedDeal::class.java)
                     if (notifiedDeal != null) {
                         db.collection("deals").document(notifiedDeal.deal_id).get()
                             .addOnSuccessListener {
-                                dealSnapshot->
+                                    dealSnapshot->
                                 dealSnapshot.toObject(DealItem::class.java)?.let { deal ->
-                                    notificationList.add(NotificationItem(deal, notifiedDeal.timestamp))
+                                    notificationList.add(notifiedDeal.copy(deal = deal))
                                     if(notificationList.size == snapshot.childrenCount.toInt()){
                                         continuation.resumeWith(Result.success(notificationList))
                                     }
@@ -50,35 +49,31 @@ class NotificationsRepository {
     }
 
     fun listenForNewNotifications(
-        onAdded: (NotificationItem) -> Unit,
-        onChanged: (NotificationItem) -> Unit,
-        onRemoved: (NotificationItem) -> Unit,  // dealId
-        onMoved: (NotificationItem) -> Unit
+        onAdded: (NotifiedDeal) -> Unit,
+        onChanged: (NotifiedDeal) -> Unit,
+        onRemoved: (NotifiedDeal) -> Unit,  // dealId
+        onMoved: (NotifiedDeal) -> Unit
     ) {
         dbRef.addChildEventListener(object : ChildEventListener {
 
             override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-                val dealId = snapshot.getValue(NotifiedDeal::class.java)?.deal_id ?: return
-                val timestamp = snapshot.getValue(NotifiedDeal::class.java)?.timestamp ?: return
-                fetchDeal(dealId, timestamp, onAdded)
+                val notifiedDeal = snapshot.getValue(NotifiedDeal::class.java) ?: return
+                fetchDeal(notifiedDeal, onAdded)
             }
 
             override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
-                val dealId = snapshot.getValue(NotifiedDeal::class.java)?.deal_id ?: return
-                val timestamp = snapshot.getValue(NotifiedDeal::class.java)?.timestamp ?: return
-                fetchDeal(dealId, timestamp, onChanged)
+                val notifiedDeal = snapshot.getValue(NotifiedDeal::class.java) ?: return
+                fetchDeal(notifiedDeal, onChanged)
             }
 
             override fun onChildRemoved(snapshot: DataSnapshot) {
-                val dealId = snapshot.getValue(NotifiedDeal::class.java)?.deal_id ?: return
-                val timestamp = snapshot.getValue(NotifiedDeal::class.java)?.timestamp ?: return
-                fetchDeal(dealId,timestamp, onRemoved)
+                val notifiedDeal = snapshot.getValue(NotifiedDeal::class.java) ?: return
+                fetchDeal(notifiedDeal, onRemoved)
             }
 
             override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
-                val dealId = snapshot.getValue(NotifiedDeal::class.java)?.deal_id ?: return
-                val timestamp = snapshot.getValue(NotifiedDeal::class.java)?.timestamp ?: return
-                fetchDeal(dealId, timestamp, onMoved)
+                val notifiedDeal = snapshot.getValue(NotifiedDeal::class.java) ?: return
+                fetchDeal(notifiedDeal, onMoved)
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -88,19 +83,15 @@ class NotificationsRepository {
     }
 
     private fun fetchDeal(
-        dealId: String,
-        timestamp: Long,
-        callback: (NotificationItem) -> Unit
+        notifiedDeal: NotifiedDeal,
+        callback: (NotifiedDeal) -> Unit
     ) {
-        db.collection("deals").document(dealId).get()
+        db.collection("deals").document(notifiedDeal.deal_id).get()
             .addOnSuccessListener { snap ->
                 snap.toObject(DealItem::class.java)?.let { deal ->
-                    callback(NotificationItem(deal, timestamp))
+                    callback(notifiedDeal.copy(deal = deal))
                 }
             }
     }
 
 }
-
-
-

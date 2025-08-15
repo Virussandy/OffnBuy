@@ -1,42 +1,71 @@
 package com.ozonic.offnbuy.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ozonic.offnbuy.model.ApiResponse
+import com.ozonic.offnbuy.model.GeneratedLink
 import com.ozonic.offnbuy.repository.GenerateLinkRepository
+import com.ozonic.offnbuy.util.FirebaseInitialization
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.util.regex.Pattern
 
-class GenerateLinkViewModel : ViewModel() {
+class GenerateLinkViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = GenerateLinkRepository()
+    private val repository = GenerateLinkRepository((application as FirebaseInitialization).database.generatedLinkDao())
     private val _productLink = MutableStateFlow("")
-    val productLink: MutableStateFlow<String> = _productLink
+    val productLink: StateFlow<String> = _productLink.asStateFlow()
 
     private val _recentLinks = MutableStateFlow<List<String>>(emptyList())
-    val recentLinks: MutableStateFlow<List<String>> = _recentLinks
+    val recentLinks: StateFlow<List<String>> = _recentLinks.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
-    val isLoading: MutableStateFlow<Boolean> = _isLoading
+    val isLoading: StateFlow<Boolean> = _isLoading
 
     private val _generatedLink = MutableStateFlow<ApiResponse?>(null)
-    val generatedLink: MutableStateFlow<ApiResponse?> = _generatedLink
+    val generatedLink: StateFlow<ApiResponse?> = _generatedLink
+
+    private val _isError = MutableStateFlow(false)
+    val isError: StateFlow<Boolean> = _isError.asStateFlow()
 
     init {
         getRecentLinks()
     }
 
-    fun getRecentLinks() {
-        _recentLinks.value = listOf<String>("https://amzn.to/3Hrnblw", "https://amzn.to/4fx0mK3")
+    private fun getRecentLinks() {
+        viewModelScope.launch {
+            repository.getRecentLinks().map { list -> list.map { it.url } }
+                .collect {
+                    _recentLinks.value = it
+                }
+        }
     }
 
     fun onProductLinkChange(link: String) {
         _productLink.value = link
+        if (link.isNotBlank()) {
+            _isError.value = !isValidUrl(link)
+        } else {
+            _isError.value = false
+        }
+    }
+
+    private fun isValidUrl(url: String): Boolean {
+        return try {
+            val pattern = Pattern.compile("(https?://\\S+)")
+            pattern.matcher(url).matches()
+        } catch (e: Exception) {
+            false
+        }
     }
 
     fun generateLink() {
         viewModelScope.launch {
-            if(_productLink.value.isNotBlank()){
+            if(_productLink.value.isNotBlank() && !_isError.value){
                 _isLoading.value = true
 
                 val response = repository.generateLink(_productLink.value)

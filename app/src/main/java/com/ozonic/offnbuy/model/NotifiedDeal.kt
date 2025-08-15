@@ -9,8 +9,3 @@ data class NotifiedDeal(
     val deal_id: String = "",
     val timestamp: Long = 0L,
 )
-
-data class NotificationItem(
-    val deal: DealItem = DealItem(),
-    val timestamp: Long = 0L,
-)

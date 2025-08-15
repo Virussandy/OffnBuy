@@ -10,6 +10,7 @@ class SharedPrefManager(context: Context){
         const val KEY_DEAL_IDS = "seen_deal_ids"
         const val IS_FIRST_TIME = "is_first_time_run"
         const val DARK_MODE = "dark_mode"
+        const val DYNAMIC_COLOR = "dynamic_color"
     }
 
     fun getSeenDealsIds() : Set<String>{
@@ -37,4 +38,13 @@ class SharedPrefManager(context: Context){
     fun setDarkMode(isDarkMode: Boolean) {
         sharedPreferences.edit { putBoolean(DARK_MODE, isDarkMode) }
     }
+
+    fun getDynamicColor(): Boolean {
+        return sharedPreferences.getBoolean(DYNAMIC_COLOR, false)
+    }
+
+    fun setDynamicColor(isDynamicColor: Boolean) {
+        sharedPreferences.edit { putBoolean(DYNAMIC_COLOR, isDynamicColor) }
+    }
+
 }

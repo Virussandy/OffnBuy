@@ -74,7 +74,8 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.navigation.compose.android)
-    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.androidx.ui.util)
+    implementation(libs.material3)
     testImplementation(libs.junit)
     implementation (libs.ktor.client.android)
     androidTestImplementation(libs.androidx.junit)
@@ -93,12 +94,15 @@ dependencies {
     implementation( libs.compose)
 
     // Import the BoM for the Firebase platform
-    implementation(platform(libs.firebase.bom))
-    implementation (libs.firebase.messaging)
-    implementation(libs.firebase.database)
     // Declare the dependency for the Cloud FireStore library
     // When using the BoM, you don't specify versions in Firebase library dependencies
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation (libs.firebase.messaging)
+    implementation(libs.firebase.database)
+    implementation(libs.firebase.storage)
     implementation(libs.firebase.firestore)
+    implementation(libs.play.services.auth)
 
     implementation (libs.androidx.core.splashscreen)
 

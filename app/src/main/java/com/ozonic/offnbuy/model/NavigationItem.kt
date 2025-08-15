@@ -1,6 +1,7 @@
 package com.ozonic.offnbuy.model
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Notifications
@@ -35,6 +36,11 @@ sealed class NavigationItem(
         icon = Icons.Rounded.Search
     )
 
+    object Links : NavigationItem(
+        route = Routes.Links.route,
+        icon = Icons.Filled.Link
+    )
+
     object DealDetailScreen : NavigationItem(
         route = "dealDetail/{dealId}",
         arguments = listOf(navArgument("dealId") { type = NavType.StringType })
@@ -53,12 +59,16 @@ sealed class NavigationItem(
         }
     }
 
-    object LinkGenerateScreen : NavigationItem(
-        route = "linkGenerate"
+    object AuthScreen : NavigationItem(
+        route = "auth"
+    )
+
+    object EditProfileScreen : NavigationItem(
+        route = "edit_profile"
     )
 
     companion object {
-        fun values() = listOf(Home, Notifications, Profile)
+        fun values() = listOf(Home, Links, Notifications, Profile)
     }
 }
 
@@ -66,7 +76,8 @@ enum class Routes(val route: String){
     Home("Home"),
     Notifications("Notifications"),
     Profile("Profile"),
-    Search("Search");
+    Search("Search"),
+    Links("Links")
 }
 
 enum class ContentType(val route: String){

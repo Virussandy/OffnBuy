@@ -50,8 +50,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.ozonic.offnbuy.R
 import com.ozonic.offnbuy.model.DealItem
@@ -94,21 +96,21 @@ fun SearchScreen(
         topBar = {
             Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
                 TopAppBar(
-                    title = { Text("Search") },
-                    windowInsets = WindowInsets(
-                        top = dimensionResource(id = R.dimen.none),
-                        bottom = dimensionResource(id = R.dimen.none)
-                    ),
-//                    expandedHeight = 50.dp,
+                    title = {
+                        Text(
+                            text = "Search",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 24.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    },
                     navigationIcon = {
-                        IconButton(
-                            onClick = { onBackOperation() }, modifier = Modifier.padding(
-                                dimensionResource(R.dimen.smallMedium)
-                            )
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        IconButton(onClick = onBackOperation) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back",tint = MaterialTheme.colorScheme.primary)
                         }
                     },
+                    windowInsets = WindowInsets(top = 0.dp, bottom = 0.dp),
                     scrollBehavior = scrollBehaviour,
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
@@ -131,28 +133,21 @@ fun SearchScreen(
             LazyVerticalGrid(
                 state = listState,
                 columns = GridCells.Fixed(2),
-                modifier = Modifier
-                    .fillMaxSize().padding(paddingValues),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                modifier = Modifier.fillMaxSize().padding(paddingValues),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp)
             ) {
                 itemsIndexed(
                     items = searchDeals,
                     key = { _, deal -> "${deal.deal_id}_${deal.posted_on}" }
                 ) { index, deal ->
                     DealCard(
-                        title = deal.title ?: "",
-                        imageUrl = deal.image ?: "",
-                        price = deal.price ?: "",
-                        originalPrice = deal.originalPrice ?: "",
-                        discount = deal.discount ?: "",
-                        store = deal.store ?: "",
-                        timeAgo = deal.posted_on ?: "",
+                        deal = deal,
                         onClick = {
                             val intent = Intent(Intent.ACTION_VIEW, deal.url?.toUri())
                             context.startActivity(intent)
                         },
-                        url = deal.url ?: "",
                     )
 
                     if (index >= searchDeals.size - 12 && hasMoreItems && !isLoading) {
@@ -224,7 +219,7 @@ fun SearchBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp)
+            .padding(horizontal = 8.dp, vertical = 8.dp)
             .background(
                 color = MaterialTheme.colorScheme.onPrimary,
                 shape = RoundedCornerShape(25.dp)
