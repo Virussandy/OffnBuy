@@ -76,6 +76,8 @@ dependencies {
     implementation(libs.androidx.navigation.compose.android)
     implementation(libs.androidx.ui.util)
     implementation(libs.material3)
+    implementation(libs.firebase.appcheck.debug)
+    implementation(libs.firebase.appcheck.playintegrity)
     testImplementation(libs.junit)
     implementation (libs.ktor.client.android)
     androidTestImplementation(libs.androidx.junit)

@@ -25,7 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -104,7 +104,7 @@ fun GenerateLink(
                             fontWeight = FontWeight.Bold
                         )
                         Icon(
-                            imageVector = Icons.Filled.Favorite,
+                            imageVector = Icons.Default.Handshake,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.error
                         )

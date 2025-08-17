@@ -128,7 +128,7 @@ fun SearchScreen(
                 )
             }
         },
-        contentWindowInsets = WindowInsets(left = dimensionResource(R.dimen.smallMedium), right = dimensionResource(R.dimen.smallMedium), top = dimensionResource(R.dimen.none), bottom = dimensionResource(R.dimen.none))
+        contentWindowInsets = WindowInsets(left = dimensionResource(R.dimen.none), right = dimensionResource(R.dimen.none), top = dimensionResource(R.dimen.none), bottom = dimensionResource(R.dimen.none))
     ) { paddingValues ->
             LazyVerticalGrid(
                 state = listState,
@@ -136,7 +136,7 @@ fun SearchScreen(
                 modifier = Modifier.fillMaxSize().padding(paddingValues),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp)
+                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
             ) {
                 itemsIndexed(
                     items = searchDeals,

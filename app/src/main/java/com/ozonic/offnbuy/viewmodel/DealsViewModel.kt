@@ -8,14 +8,12 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.ozonic.offnbuy.model.DealItem
 import com.ozonic.offnbuy.repository.DealsRepository
 import com.ozonic.offnbuy.util.FirebaseInitialization
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class DealsViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = DealsRepository((application as FirebaseInitialization).database.dealDao())
@@ -57,7 +55,7 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
                 if(latestTimeStamp != null){
                     newDealsListener?.remove()
                     newDealsListener = repository.listenForNewDeals(latestTimeStamp) { newDeal ->
-                        if(currentDeals.none(){it.deal_id == newDeal.deal_id}){
+                        if(currentDeals.none {it.deal_id == newDeal.deal_id}){
                             _newDealAvailable.value = true}
                     }
                 }

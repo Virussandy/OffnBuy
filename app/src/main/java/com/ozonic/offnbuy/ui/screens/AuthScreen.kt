@@ -3,14 +3,35 @@ package com.ozonic.offnbuy.ui.screens
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -22,6 +43,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -32,8 +54,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.google.firebase.auth.PhoneAuthProvider
 import com.ozonic.offnbuy.R
 import com.ozonic.offnbuy.model.ContentType
 import com.ozonic.offnbuy.model.NavigationItem
@@ -41,17 +63,17 @@ import com.ozonic.offnbuy.util.findActivity
 import com.ozonic.offnbuy.viewmodel.AuthState
 import com.ozonic.offnbuy.viewmodel.AuthViewModel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun AuthScreen(
     navController: NavController,
-    authViewModel: AuthViewModel = viewModel(),
+    authViewModel: AuthViewModel,
     onAuthComplete: () -> Unit
 ) {
     val authState by authViewModel.authState.collectAsState()
     val context = LocalContext.current
     var phoneNumber by remember { mutableStateOf("") }
+    var previousState by remember { mutableStateOf<AuthState>(AuthState.Unauthenticated) }
 
     LaunchedEffect(authState) {
         if (authState is AuthState.Authenticated) {
@@ -61,58 +83,40 @@ fun AuthScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        when (val state = authState) {
+        val backgroundState = if (authState is AuthState.Loading) previousState else authState
+
+        // Step 2: Draw the background UI.
+        when (backgroundState) {
             is AuthState.Unauthenticated, is AuthState.AuthError -> {
                 LoginOptionsScreen(
                     navController = navController,
                     phoneNumber = phoneNumber,
                     onPhoneNumberChange = { phoneNumber = it },
-                    error = if (state is AuthState.AuthError) state.message else null,
-                    onSendOtp = { phone ->
-                        authViewModel.sendOtp(phone, context.findActivity())
-                    }
+                    error = if (backgroundState is AuthState.AuthError) backgroundState.message else null,
+                    onSendOtp = { phone -> authViewModel.sendOtp(phone, context.findActivity()) }
                 )
             }
             is AuthState.AwaitingOtp -> {
-                BackHandler { authViewModel.goBackToLogin() }
                 OtpScreen(
-                    verificationId = state.verificationId,
-                    phoneNumber = state.phoneNumber,
-                    onVerifyOtp = { verificationId, otp ->
-                        authViewModel.verifyOtp(verificationId, otp)
-                    },
-                    onResendOtp = { phone ->
-                        authViewModel.sendOtp(phone, context.findActivity())
-                    },
-                    onGoBack = { authViewModel.goBackToLogin() }
+                    state = backgroundState,
+                    onVerifyOtp = { verificationId, otp -> authViewModel.verifyOtp(verificationId, otp) },
+                    onResendOtp = { phone, token -> authViewModel.sendOtp(phone, context.findActivity(), token) },
+                    onChangeNumber = { authViewModel.cancelVerification() }
                 )
             }
-            is AuthState.Loading -> {
-                // Determine which screen to show underneath the loading overlay
-                val previousState = authViewModel.previousAuthState
-                if (previousState is AuthState.AwaitingOtp) {
-                    OtpScreen(
-                        verificationId = previousState.verificationId,
-                        phoneNumber = previousState.phoneNumber,
-                        onVerifyOtp = { _, _ -> },
-                        onResendOtp = { },
-                        onGoBack = { }
-                    )
-                } else {
-                    LoginOptionsScreen(
-                        navController = navController,
-                        phoneNumber = phoneNumber,
-                        onPhoneNumberChange = { phoneNumber = it },
-                        error = null,
-                        onSendOtp = {}
-                    )
-                }
-                LoadingOverlay()
-            }
             is AuthState.Authenticated -> {
-                // Blank box to avoid flicker while navigating away
+                // When authenticated, show a blank background to avoid flicker during navigation.
                 Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
             }
+            else -> {
+                // Handles the initial Loading state where previousState is also loading.
+                Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+            }
+        }
+
+        // Step 3: If the current state is Loading, draw the transparent overlay on TOP of the UI from Step 2.
+        if (authState is AuthState.Loading) {
+            LoadingOverlay()
         }
     }
 }
@@ -122,7 +126,7 @@ fun LoadingOverlay() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.5f)),
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)), // Semi-transparent overlay
         contentAlignment = Alignment.Center
     ) {
         CircularProgressIndicator()
@@ -138,6 +142,7 @@ fun LoginOptionsScreen(
     error: String?,
     onSendOtp: (String) -> Unit
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -171,6 +176,7 @@ fun LoginOptionsScreen(
             label = { Text("10-digit mobile number") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = {
+                keyboardController?.hide()
                 if (phoneNumber.length == 10) onSendOtp("+91$phoneNumber")
             }),
             singleLine = true,
@@ -179,7 +185,10 @@ fun LoginOptionsScreen(
         Spacer(Modifier.height(24.dp))
 
         Button(
-            onClick = { onSendOtp("+91$phoneNumber") },
+            onClick = {
+                keyboardController?.hide()
+                onSendOtp("+91$phoneNumber")
+                      },
             modifier = Modifier.fillMaxWidth().height(50.dp),
             enabled = phoneNumber.length == 10
         ) {
@@ -196,71 +205,75 @@ fun LoginOptionsScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OtpScreen(
-    verificationId: String,
-    phoneNumber: String,
+    state: AuthState.AwaitingOtp,
     onVerifyOtp: (String, String) -> Unit,
-    onResendOtp: (String) -> Unit,
-    onGoBack: () -> Unit
+    onResendOtp: (String, PhoneAuthProvider.ForceResendingToken?) -> Unit,
+    onChangeNumber: () -> Unit
 ) {
     var otpValue by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Verify Phone Number") },
-                navigationIcon = {
-                    IconButton(onClick = onGoBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(48.dp))
+        Text("Verify Phone Number", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "Enter the 6-digit code sent to ${state.phoneNumber.replace("+91", "")}",
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        TextButton(onClick = onChangeNumber) {
+            Text("Change number?")
         }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Enter the 6-digit code sent to ${phoneNumber.replace("+91", "")}",
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(40.dp))
+        Spacer(Modifier.height(32.dp))
 
-            OtpInputField(
-                otpText = otpValue,
-                onOtpTextChange = { value, isComplete ->
-                    otpValue = value
-                    if (isComplete) {
-                        focusManager.clearFocus()
-                        onVerifyOtp(verificationId, value)
-                    }
+        OtpInputField(
+            otpText = otpValue,
+            onOtpTextChange = { value, isComplete ->
+                otpValue = value
+                if (isComplete) {
+                    focusManager.clearFocus()
+                    onVerifyOtp(state.verificationId, value)
                 }
-            )
-            Spacer(Modifier.height(24.dp))
-
-            Button(
-                onClick = { onVerifyOtp(verificationId, otpValue) },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                enabled = otpValue.length == 6
-            ) {
-                Text("Verify", fontSize = 16.sp)
             }
-            Spacer(Modifier.height(16.dp))
+        )
 
-            ResendOtpButton(
-                phoneNumber = phoneNumber,
-                onResend = { onResendOtp(phoneNumber) }
+        // Display error message directly on this screen
+        state.error?.let {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
         }
+
+        Spacer(Modifier.height(24.dp))
+
+        Button(
+            onClick = { onVerifyOtp(state.verificationId, otpValue) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            enabled = otpValue.length == 6
+        ) {
+            Text("Verify", fontSize = 16.sp)
+        }
+        Spacer(Modifier.height(16.dp))
+
+        ResendOtpButton(
+            isResending = state.isResending,
+            onResend = { onResendOtp(state.phoneNumber, state.resendToken) }
+        )
     }
 }
 
@@ -361,36 +374,38 @@ fun LegalTextFooter(navController: NavController) {
 
 @Composable
 fun ResendOtpButton(
-    phoneNumber: String,
-    onResend: (String) -> Unit
+    isResending: Boolean,
+    onResend: () -> Unit
 ) {
     var timer by remember { mutableStateOf(30) }
-    var isTimerRunning by remember { mutableStateOf(true) }
+    // The timer is now only reset when the isResending state becomes true
+    var isTimerRunning by remember(isResending) { mutableStateOf(true) }
 
-    LaunchedEffect(key1 = isTimerRunning, key2 = onResend) {
+    LaunchedEffect(key1 = isTimerRunning) {
         if (isTimerRunning) {
-            launch {
-                for (i in 30 downTo 1) {
-                    timer = i
-                    delay(1000)
-                }
-                isTimerRunning = false
+            for (i in 30 downTo 1) {
+                timer = i
+                delay(1000)
             }
+            isTimerRunning = false
         }
     }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("Didn't receive code? ", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        TextButton(
-            onClick = {
-                if (!isTimerRunning) {
-                    onResend(phoneNumber)
-                    isTimerRunning = true
-                }
-            },
-            enabled = !isTimerRunning
-        ) {
-            Text(if (isTimerRunning) "Resend in ${timer}s" else "Resend Code", fontWeight = FontWeight.Bold)
+        if (isResending) {
+            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+        } else {
+            TextButton(
+                onClick = {
+                    if (!isTimerRunning) {
+                        onResend()
+                    }
+                },
+                enabled = !isTimerRunning
+            ) {
+                Text(if (isTimerRunning) "Resend in ${timer}s" else "Resend Code")
+            }
         }
     }
 }

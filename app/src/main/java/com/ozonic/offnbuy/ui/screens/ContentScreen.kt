@@ -3,7 +3,6 @@ package com.ozonic.offnbuy.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.net.Uri
 import android.os.Build
 import android.view.ViewGroup
 import android.webkit.WebView
@@ -40,8 +39,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.ozonic.offnbuy.model.ContentType
 import androidx.core.net.toUri
+import com.ozonic.offnbuy.model.ContentType
 
 @Composable
 fun ContentScreen(contentType: ContentType, modifier: Modifier = Modifier) {

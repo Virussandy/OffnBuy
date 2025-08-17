@@ -21,10 +21,6 @@ class DealsRepository(private val dealDao: DealDao) {
         return dealDao.getDealsSteam()
     }
 
-    suspend fun getDealById(dealId: String): DealItem? {
-        return dealDao.getDealById(dealId)
-    }
-
     suspend fun syncDeals(lastVisible: DocumentSnapshot?): DocumentSnapshot? = withContext(ioDispatcher){
         var query = db.collection("deals")
             .orderBy("posted_on", Query.Direction.DESCENDING)

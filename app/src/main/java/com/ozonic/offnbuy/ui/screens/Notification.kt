@@ -78,8 +78,8 @@ fun NotificationScreen(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(
                 items = notifications,
@@ -115,9 +115,9 @@ private fun NotificationItem(
         colors = cardColors
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Image
             AsyncImage(
@@ -125,7 +125,7 @@ private fun NotificationItem(
                 contentDescription = notification.deal.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(76.dp)
                     .clip(MaterialTheme.shapes.medium)
             )
 
@@ -133,7 +133,7 @@ private fun NotificationItem(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = notification.deal.title ?: "New Deal Available",
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis

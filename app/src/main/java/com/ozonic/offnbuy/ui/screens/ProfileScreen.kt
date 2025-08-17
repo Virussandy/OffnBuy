@@ -15,10 +15,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatPaint
@@ -33,7 +33,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -44,8 +43,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,150 +53,62 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ozonic.offnbuy.R
 import com.ozonic.offnbuy.model.ContentType
 import com.ozonic.offnbuy.viewmodel.AuthState
 import com.ozonic.offnbuy.viewmodel.AuthViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+data class SettingsState(
+    val isDarkMode: Boolean,
+    val isDynamicColor: Boolean,
+    val notificationEnabled: Boolean,
+    val authState: AuthState
+)
+
 @Composable
 fun ProfileScreen(
-    isDarkMode: Boolean,
+    settingsState: SettingsState,
     onToggleDarkMode: () -> Unit,
-    isDynamicColor: Boolean,
     onToggleDynamicColor: () -> Unit,
-    contentScreenClick: (String) -> Unit,
-    appShare: () -> Unit,
+    onContentScreenClick: (String) -> Unit,
+    onAppShare: () -> Unit,
     onNotificationSettingsClick: () -> Unit,
-    notificationEnabled: Boolean,
-    onCheckNotificationStatus: () -> Unit,
     onLoginClick: () -> Unit,
-    authViewModel: AuthViewModel = viewModel(),
     onEditProfileClick: () -> Unit,
+    onLogout: () -> Unit,
 ) {
-
-    val authState by authViewModel.authState.collectAsState()
     val scrollState = rememberScrollState()
-    val lifeCycleOwner = LocalLifecycleOwner.current
 
-    DisposableEffect(lifeCycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                onCheckNotificationStatus()
-            }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+            .verticalScroll(state = scrollState),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Spacer(modifier = Modifier.height(1.dp))
+
+        when (val state = settingsState.authState) {
+            is AuthState.Authenticated -> AuthenticatedHeader(state, onEditProfileClick)
+            else -> UnauthenticatedHeader(onLoginClick)
         }
-        lifeCycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifeCycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                .verticalScroll(state = scrollState),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Spacer(modifier = Modifier.height(1.dp))
 
-            when (val state = authState) {
-                is AuthState.Authenticated -> AuthenticatedHeader(state, onEditProfileClick)
-                else -> UnauthenticatedHeader(onLoginClick)
-            }
+        SettingsSection(
+            settingsState = settingsState, // Pass the whole state object
+            onToggleDarkMode = onToggleDarkMode,
+            onToggleDynamicColor = onToggleDynamicColor,
+            onEditProfileClick = onEditProfileClick,
+            onNotificationSettingsClick = onNotificationSettingsClick
+        )
 
-            // --- Settings Section ---
-            Card(modifier = Modifier.fillMaxWidth()) {
-                ProfileOption(
-                    text = "Dark Mode",
-                    icon = if (isDarkMode) Icons.Default.DarkMode else Icons.Default.LightMode,
-                    trailingContent = {
-                        Switch(
-                            checked = isDarkMode,
-                            onCheckedChange = { onToggleDarkMode() }
-                        )
-                    }
-                )
-            }
+        AboutAndSupportSection(onContentScreenClick, onAppShare)
 
-            // --- Settings Section ---
-            Card(modifier = Modifier.fillMaxWidth()) {
-                ProfileOption(
-                    text = "Dynamic Theme",
-                    icon = if (isDynamicColor) Icons.Filled.FormatPaint else Icons.Filled.ImagesearchRoller,
-                    trailingContent = {
-                        Switch(
-                            checked = isDynamicColor,
-                            onCheckedChange = { onToggleDynamicColor() }
-                        )
-                    }
-                )
-            }
-
-            // --- Account Section ---
-            Card(modifier = Modifier.fillMaxWidth()) {
-                ProfileOption(
-                    text = "Edit Profile",
-                    icon = Icons.Default.Edit,
-                    onClick = onEditProfileClick
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                NotificationProfileOption(
-                    text = "Notification Settings",
-                    icon = Icons.Default.Notifications,
-                    onClick = onNotificationSettingsClick,
-                    showBadge = !notificationEnabled
-                )
-            }
-
-
-            // --- About & Support Section ---
-            Card(modifier = Modifier.fillMaxWidth()) {
-                ProfileOption(
-                    text = "Share App",
-                    icon = Icons.Default.Share,
-                    onClick = appShare
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                ProfileOption(
-                    text = "Help & Support",
-                    icon = Icons.AutoMirrored.Filled.HelpOutline,
-                    onClick = { contentScreenClick(ContentType.HelpAndSupport.route) }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                ProfileOption(
-                    text = "Privacy Policy",
-                    icon = Icons.Default.Policy,
-                    onClick = { contentScreenClick(ContentType.PrivacyPolicy.route) }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                ProfileOption(
-                    text = "Terms & Conditions",
-                    icon = Icons.Default.Assignment,
-                    onClick = { contentScreenClick(ContentType.TermsAndConditions.route) }
-                )
-            }
-
-            if (authState is AuthState.Authenticated) {
-                Button(
-                    onClick = { authViewModel.logout() },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp)
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Logout")
-                    Spacer(modifier = Modifier.size(ButtonDefaults.IconSpacing))
-                    Text("Logout")
-                }
-            }
+        if (settingsState.authState is AuthState.Authenticated) {
+            LogoutButton(onLogout)
         }
     }
+}
 
 @Composable
 fun AuthenticatedHeader(state: AuthState.Authenticated, onEditProfileClick: () -> Unit) {
@@ -221,7 +130,6 @@ fun AuthenticatedHeader(state: AuthState.Authenticated, onEditProfileClick: () -
                     .clickable(onClick = onEditProfileClick),
                 contentAlignment = Alignment.Center
             ) {
-                // Placeholder for profile picture, using initial
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     shape = CircleShape,
@@ -289,6 +197,104 @@ fun UnauthenticatedHeader(onLoginClick: () -> Unit) {
                 Text("Login / Sign Up")
             }
         }
+    }
+}
+
+@Composable
+private fun SettingsSection(
+    settingsState: SettingsState, // Now receives the whole state
+    onToggleDarkMode: () -> Unit,
+    onToggleDynamicColor: () -> Unit,
+    onEditProfileClick: () -> Unit,
+    onNotificationSettingsClick: () -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        ProfileOption(
+            text = "Dark Mode",
+            icon = if (settingsState.isDarkMode) Icons.Default.DarkMode else Icons.Default.LightMode,
+            trailingContent = {
+                Switch(
+                    checked = settingsState.isDarkMode,
+                    onCheckedChange = { onToggleDarkMode() }
+                )
+            }
+        )
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        ProfileOption(
+            text = "Dynamic Theme",
+            icon = if (settingsState.isDynamicColor) Icons.Filled.FormatPaint else Icons.Filled.ImagesearchRoller,
+            trailingContent = {
+                Switch(
+                    checked = settingsState.isDynamicColor,
+                    onCheckedChange = { onToggleDynamicColor() }
+                )
+            }
+        )
+        if(settingsState.authState is AuthState.Authenticated){
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+            ProfileOption(
+                text = "Edit Profile",
+                icon = Icons.Default.Edit,
+                onClick = onEditProfileClick
+            )
+        }
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        NotificationProfileOption(
+            text = "Notification Settings",
+            icon = Icons.Default.Notifications,
+            onClick = onNotificationSettingsClick,
+            showBadge = !settingsState.notificationEnabled
+        )
+    }
+}
+
+@Composable
+private fun AboutAndSupportSection(
+    onContentScreenClick: (String) -> Unit,
+    onAppShare: () -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        ProfileOption(
+            text = "Share App",
+            icon = Icons.Default.Share,
+            onClick = onAppShare
+        )
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        ProfileOption(
+            text = "Help & Support",
+            icon = Icons.AutoMirrored.Filled.HelpOutline,
+            onClick = { onContentScreenClick(ContentType.HelpAndSupport.route) }
+        )
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        ProfileOption(
+            text = "Privacy Policy",
+            icon = Icons.Default.Policy,
+            onClick = { onContentScreenClick(ContentType.PrivacyPolicy.route) }
+        )
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        ProfileOption(
+            text = "Terms & Conditions",
+            icon = Icons.AutoMirrored.Filled.Assignment,
+            onClick = { onContentScreenClick(ContentType.TermsAndConditions.route) }
+        )
+    }
+}
+
+@Composable
+private fun LogoutButton(onLogout: () -> Unit) {
+    Button(
+        onClick = onLogout,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer
+        ),
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier
+            .fillMaxWidth()
+    ) {
+        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Logout")
+        Spacer(modifier = Modifier.size(ButtonDefaults.IconSpacing))
+        Text("Logout", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(vertical = 8.dp))
     }
 }
 

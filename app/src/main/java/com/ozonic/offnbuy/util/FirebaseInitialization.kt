@@ -11,7 +11,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessaging
 import com.ozonic.offnbuy.data.AppDatabase
 
-class FirebaseInitialization : Application() {
+class  FirebaseInitialization : Application() {
 
     val database: AppDatabase by lazy { AppDatabase.getDatabase(this) }
 
@@ -38,7 +38,7 @@ class FirebaseInitialization : Application() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = "Good Deals"
             val descriptionText = "Get notified about best deals!"
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val importance = NotificationManager.IMPORTANCE_HIGH
             val channel = NotificationChannel("good_deals_channel", name, importance).apply {
                 description = descriptionText
             }

@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ozonic.offnbuy.model.ApiResponse
-import com.ozonic.offnbuy.model.GeneratedLink
 import com.ozonic.offnbuy.repository.GenerateLinkRepository
 import com.ozonic.offnbuy.util.FirebaseInitialization
 import kotlinx.coroutines.flow.MutableStateFlow

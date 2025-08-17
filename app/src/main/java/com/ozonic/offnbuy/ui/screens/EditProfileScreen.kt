@@ -1,35 +1,41 @@
 package com.ozonic.offnbuy.ui.screens
 
 import android.net.Uri
-import android.util.Patterns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,57 +43,32 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
-import com.google.firebase.Firebase
 import com.google.firebase.auth.PhoneAuthProvider
-import com.google.firebase.auth.auth
 import com.ozonic.offnbuy.R
+import com.ozonic.offnbuy.model.User
+import com.ozonic.offnbuy.util.findActivity
 import com.ozonic.offnbuy.viewmodel.AuthState
 import com.ozonic.offnbuy.viewmodel.AuthViewModel
-import com.ozonic.offnbuy.viewmodel.EmailVerifyState
-import com.ozonic.offnbuy.viewmodel.UpdatePhoneState
+import com.ozonic.offnbuy.viewmodel.ProfileState
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditProfileScreen(
-    authViewModel: AuthViewModel = viewModel(),
+    authViewModel: AuthViewModel,
+    onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
     val authState by authViewModel.authState.collectAsState()
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val profileState by authViewModel.profileState.collectAsState()
 
-    // Observe the auth state to get the most recent user object
-    val currentUser by remember(authState) {
-        mutableStateOf(Firebase.auth.currentUser)
-    }
-
-    var showLinkPhoneDialog by remember { mutableStateOf(false) }
-    var userName by remember { mutableStateOf(currentUser?.displayName ?: "User") }
-    var userEmail by remember { mutableStateOf(currentUser?.email ?: "") }
-    val emailVerifyState by authViewModel.emailVerifyState.collectAsState()
-    var showEmailVerifyDialog by remember { mutableStateOf(false) }
-    var emailToVerify by remember { mutableStateOf("") }
-
-    // This state will hold the email a user is trying to verify
-    var pendingEmail by remember { mutableStateOf("") }
-
-    val isEmailVerified = currentUser?.isEmailVerified ?: false
-
-    // Real-time validation for the email input
-    val isEmailValid by remember(userEmail) {
-        derivedStateOf {
-            Patterns.EMAIL_ADDRESS.matcher(userEmail).matches()
-        }
-    }
+    var showEditNameDialog by remember { mutableStateOf(false) }
+    var showUpdatePhoneDialog by remember { mutableStateOf(false) }
+    var showUpdateEmailDialog by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -95,216 +76,110 @@ fun EditProfileScreen(
         uri?.let { authViewModel.updateProfilePicture(it) }
     }
 
-    // Refresh user state when the app is resumed
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                authViewModel.reloadUser()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    LaunchedEffect(authState) {
-        when (val state = authState) {
-            is AuthState.AuthError -> {
-                Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
-            }
-            is AuthState.Authenticated -> {
-                // Update the local state with fresh data from the ViewModel
-                val freshUser = state.user
-                userName = freshUser.displayName ?: "User"
-                userEmail = freshUser.email ?: ""
-
-                if (pendingEmail.isNotEmpty() && pendingEmail == freshUser.email && !freshUser.isEmailVerified) {
-                    Toast.makeText(context, "Verification email sent to $pendingEmail", Toast.LENGTH_LONG).show()
-                    pendingEmail = "" // Reset pending email
-                }
-            }
-            else -> {}
-        }
-    }
-
-    // This effect listens to the verification state to show/hide the dialog
-    LaunchedEffect(emailVerifyState) {
-        when (val state = emailVerifyState) {
-            is EmailVerifyState.OtpSent -> showEmailVerifyDialog = true
-            is EmailVerifyState.Verified -> {
-                Toast.makeText(context, "Email successfully linked!", Toast.LENGTH_SHORT).show()
-                showEmailVerifyDialog = false
-                authViewModel.resetEmailVerifyState()
-            }
-            is EmailVerifyState.Error -> Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
-            else -> {}
-        }
-    }
-
-        Column(
-            modifier = Modifier
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            if (currentUser != null) {
-                // Profile picture UI (as provided in the previous response)
-
-                AsyncImage(
-                    model = currentUser?.photoUrl,
-                    contentDescription = "Profile Picture",
-                    placeholder = painterResource(id = R.drawable.ic_profile),
-                    error = painterResource(id = R.drawable.ic_profile),
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(CircleShape)
-                        .clickable { imagePickerLauncher.launch("image/*") }
-                )
-
-                OutlinedTextField(
-                    value = userName,
-                    onValueChange = { userName = it },
-                    label = { Text("Name") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = userEmail,
-                    onValueChange = { userEmail = it },
-                    label = { Text("Email") },
-                    modifier = Modifier.fillMaxWidth(),
-                    readOnly = isEmailVerified,
-                    isError = userEmail.isNotEmpty() && !isEmailValid,
-                    trailingIcon = {
-                        if (isEmailVerified) {
-                            Text("Verified", color = MaterialTheme.colorScheme.primary)
-                        } else if (userEmail.isNotEmpty() && isEmailValid) {
-                            TextButton(
-                                onClick = {
-                                    emailToVerify = userEmail
-                                    authViewModel.sendEmailOtp(userEmail)
-                                },
-                                enabled = emailVerifyState !is EmailVerifyState.Loading
-                            ) {
-                                Text("Verify")
-                            }
-                        }
-                    }
-                )
-
-
-                Button(
-                    onClick = {
-                        // The save button now only saves the name
-                        authViewModel.updateDisplayName(userName)
-                        Toast.makeText(context, "Profile Saved!", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = authState !is AuthState.Loading
-                ) {
-                    // ... Loading indicator logic ...
-                    Text("Save Name")
-                }
-
-                Divider()
-
-                Text("Linked Accounts", style = MaterialTheme.typography.titleLarge)
-
-                // --- Phone Number Row ---
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    ProfileInfoRow(
-                        label = "Phone Number",
-                        value = currentUser?.phoneNumber ?: "Not available"
-                    )
-                    TextButton(onClick = { showLinkPhoneDialog = true }) {
-                        Text("Change")
-                    }
-                }
-
-                if (isEmailVerified) {
-                    ProfileInfoRow(label = "Email", value = currentUser?.email ?: "Not available")
-                }
+    LaunchedEffect(profileState) {
+        if (profileState.isUpdateSuccessful) {
+            val message = if (showUpdateEmailDialog) {
+                "Verification email sent! Please check your inbox."
             } else {
-                Text(
-                    "You need to be logged in to edit your profile.",
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
+                "Profile updated successfully!"
             }
-        }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
 
-        if (showLinkPhoneDialog) {
-            UpdatePhoneDialog(
-                authViewModel = authViewModel,
-                onDismiss = {
-                    authViewModel.resetLinkState()
-                    showLinkPhoneDialog = false
-                }
-            )
+            // Close all dialogs on success
+            showEditNameDialog = false
+            showUpdatePhoneDialog = false
+            showUpdateEmailDialog = false
+            authViewModel.resetProfileState()
         }
-
-        // This will now correctly show the OTP dialog when needed
-        if (showEmailVerifyDialog) {
-            EmailVerifyDialog(
-                email = emailToVerify,
-                state = emailVerifyState,
-                onDismiss = {
-                    showEmailVerifyDialog = false
-                    authViewModel.resetEmailVerifyState()
-                },
-                onVerify = { otp ->
-                    authViewModel.verifyEmailAndLink(emailToVerify, otp)
-                }
-            )
+        profileState.error?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            authViewModel.resetProfileState()
         }
     }
 
-/**
- * A dialog for entering the email verification OTP.
- */
+    when (val state = authState) {
+        is AuthState.Authenticated -> {
+            EditProfileContent(
+                user = state.user,
+                onUpdateProfilePicture = { imagePickerLauncher.launch("image/*") },
+                onEditName = { showEditNameDialog = true },
+                onEditPhone = { showUpdatePhoneDialog = true },
+                onEditEmail = { showUpdateEmailDialog = true }
+            )
+        }
+        else -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator() // Show a loader while the user state is being resolved
+            }
+        }
+    }
+
+    // --- Dialogs ---
+    if (showEditNameDialog && authState is AuthState.Authenticated) {
+        EditNameDialog(
+            profileState = profileState,
+            currentName = (authState as AuthState.Authenticated).user.displayName ?: "",
+            onDismiss = { showEditNameDialog = false },
+            onSave = { newName -> authViewModel.updateDisplayName(newName) }
+        )
+    }
+
+    if (showUpdatePhoneDialog) {
+        UpdatePhoneDialog(
+            profileState = profileState,
+            onDismiss = { showUpdatePhoneDialog = false },
+            onSendOtp = { phone -> authViewModel.sendOtpForUpdate(phone, context.findActivity()) },
+            onVerifyOtp = { verificationId, otp ->
+                val credential = PhoneAuthProvider.getCredential(verificationId, otp)
+                authViewModel.updateUserPhoneNumber(credential)
+            }
+        )
+    }
+
+    // This now correctly uses the UpdateEmailDialog for sending a verification link
+    if (showUpdateEmailDialog) {
+        UpdateEmailDialog(
+            profileState = profileState,
+            onDismiss = { showUpdateEmailDialog = false },
+            onSendLink = { email -> authViewModel.sendVerificationEmail(email) }
+        )
+    }
+}
+
 @Composable
-fun EmailVerifyDialog(
-    email: String,
-    state: EmailVerifyState,
+fun UpdateEmailDialog(
+    profileState: ProfileState,
     onDismiss: () -> Unit,
-    onVerify: (String) -> Unit
+    onSendLink: (String) -> Unit
 ) {
-    var otp by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Verify Email") },
+        title = { Text("Update Email Address") },
         text = {
             Column {
-                Text("We've sent a verification code to $email. Please enter it below.")
-                Spacer(modifier = Modifier.height(8.dp))
+                Text("A verification link will be sent to your new email address. You must click the link to finalize the change.")
+                Spacer(Modifier.height(16.dp))
                 OutlinedTextField(
-                    value = otp,
-                    onValueChange = { otp = it },
-                    label = { Text("Verification Code") },
-                    enabled = state !is EmailVerifyState.Loading
-                )
-                // Instructions for the user during this simulation
-                Text(
-                    "For this demo, please use 'password123' as the code.",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp)
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("New Email Address") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    enabled = !profileState.isLoading,
+                    singleLine = true
                 )
             }
         },
         confirmButton = {
             Button(
-                onClick = { onVerify(otp) },
-                enabled = state !is EmailVerifyState.Loading && otp.isNotEmpty()
+                onClick = { onSendLink(email) },
+                enabled = !profileState.isLoading && email.isNotBlank()
             ) {
-                if (state is EmailVerifyState.Loading) {
+                if (profileState.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp))
                 } else {
-                    Text("Verify & Link")
+                    Text("Send Link")
                 }
             }
         },
@@ -314,36 +189,141 @@ fun EmailVerifyDialog(
     )
 }
 
-/**
- * A new dialog specifically for UPDATING the primary phone number.
- */
-@Composable
-fun UpdatePhoneDialog(
-    authViewModel: AuthViewModel,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    val updateState by authViewModel.updatePhoneState.collectAsState()
-
-    var phoneNumber by remember { mutableStateOf("") }
-    var otp by remember { mutableStateOf("") }
-
-    LaunchedEffect(updateState) {
-        when (val state = updateState) {
-            is UpdatePhoneState.Error -> {
-                Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
+    @Composable
+    fun EditProfileContent(
+        user: User,
+        onUpdateProfilePicture: () -> Unit,
+        onEditName: () -> Unit,
+        onEditPhone: () -> Unit,
+        onEditEmail: () -> Unit,
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                ProfilePicture(
+                    photoUrl = user.photoUrl,
+                    onUpdate = onUpdateProfilePicture
+                )
             }
-            is UpdatePhoneState.Idle -> {
-                if (otp.isNotEmpty()) { // If we just successfully updated
-                    Toast.makeText(context, "Phone number updated!", Toast.LENGTH_SHORT).show()
-                    onDismiss()
+
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        ListItem(
+                            headlineContent = { Text("Name") },
+                            supportingContent = { Text(user.displayName ?: "Not set") },
+                            trailingContent = {
+                                TextButton(onClick = onEditName) { Text("Change") }
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                        )
+                        HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                        ListItem(
+                            headlineContent = { Text("Phone Number") },
+                            supportingContent = { Text(user.phoneNumber ?: "Not set") },
+                            trailingContent = {
+                                TextButton(onClick = onEditPhone) { Text("Change") }
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                        )
+                        HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                        ListItem(
+                            headlineContent = { Text("Email Address") },
+                            supportingContent = {
+                                val emailText = user.email ?: "Not linked"
+                                val status = if (user.isEmailVerified) " (Verified)" else " (Not Verified)"
+                                Text(if (user.email != null) emailText + status else emailText)
+                            },
+                            trailingContent = {
+                                TextButton(onClick = onEditEmail) {
+                                    Text(if (user.email.isNullOrEmpty()) "Add" else "Change")
+                                }
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                        ) // Correctly closed brace
+                    }
                 }
             }
-            else -> {}
         }
     }
 
-    val isOtpView = updateState is UpdatePhoneState.AwaitingOtp
+@Composable
+fun ProfilePicture(photoUrl: Uri?, onUpdate: () -> Unit) {
+    Box(contentAlignment = Alignment.BottomEnd) {
+        AsyncImage(
+            model = photoUrl,
+            contentDescription = "Profile Picture",
+            placeholder = painterResource(id = R.drawable.ic_profile),
+            error = painterResource(id = R.drawable.ic_profile),
+            modifier = Modifier
+                .size(120.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onUpdate)
+        )
+        FloatingActionButton(
+            onClick = onUpdate,
+            modifier = Modifier.size(40.dp),
+            shape = CircleShape,
+            elevation = FloatingActionButtonDefaults.elevation(4.dp)
+        ) {
+            Icon(Icons.Default.CameraAlt, contentDescription = "Change profile picture")
+        }
+    }
+}
+
+@Composable
+fun EditNameDialog(
+    profileState: ProfileState,
+    currentName: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var newName by remember { mutableStateOf(currentName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Update Your Name") },
+        text = {
+            OutlinedTextField(
+                value = newName,
+                onValueChange = { newName = it },
+                label = { Text("Name") },
+                enabled = !profileState.isLoading,
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(newName) },
+                enabled = !profileState.isLoading && newName.isNotBlank()
+            ) {
+                if (profileState.isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                } else {
+                    Text("Save")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun UpdatePhoneDialog(
+    profileState: ProfileState,
+    onDismiss: () -> Unit,
+    onSendOtp: (String) -> Unit,
+    onVerifyOtp: (String, String) -> Unit
+) {
+    var phoneNumber by remember { mutableStateOf("") }
+    var otp by remember { mutableStateOf("") }
+    val isOtpView = profileState.phoneVerificationId != null
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -356,7 +336,7 @@ fun UpdatePhoneDialog(
                         onValueChange = { phoneNumber = it },
                         label = { Text("New phone number") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        enabled = updateState !is UpdatePhoneState.Loading
+                        enabled = !profileState.isLoading
                     )
                 } else {
                     OutlinedTextField(
@@ -364,7 +344,7 @@ fun UpdatePhoneDialog(
                         onValueChange = { otp = it },
                         label = { Text("6-digit code") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        enabled = updateState !is UpdatePhoneState.Loading
+                        enabled = !profileState.isLoading
                     )
                 }
             }
@@ -373,16 +353,14 @@ fun UpdatePhoneDialog(
             Button(
                 onClick = {
                     if (isOtpView) {
-                        val verificationId = (updateState as UpdatePhoneState.AwaitingOtp).verificationId
-                        val credential = PhoneAuthProvider.getCredential(verificationId, otp)
-                        authViewModel.updateUserPhoneNumber(credential)
+                        onVerifyOtp(profileState.phoneVerificationId!!, otp)
                     } else {
-                        authViewModel.sendOtpForUpdate(phoneNumber, context.findActivity())
+                        onSendOtp("+91$phoneNumber")
                     }
                 },
-                enabled = updateState !is UpdatePhoneState.Loading
+                enabled = !profileState.isLoading
             ) {
-                if (updateState is UpdatePhoneState.Loading) {
+                if (profileState.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp))
                 } else {
                     Text(if (!isOtpView) "Send OTP" else "Verify & Update")
@@ -395,12 +373,4 @@ fun UpdatePhoneDialog(
             }
         }
     )
-}
-
-@Composable
-fun ProfileInfoRow(label: String, value: String) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-    }
 }

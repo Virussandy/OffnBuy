@@ -25,9 +25,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 
-class NotificationViewModel(
-    application: Application               // need context -> extend AndroidViewModel
-) : AndroidViewModel(application) {
+class NotificationViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = NotificationsRepository()
     private val sharedPrefManager = SharedPrefManager(application)
@@ -45,13 +43,13 @@ class NotificationViewModel(
     init {
         viewModelScope.launch {
             if (sharedPrefManager.isFirstTimeRun()) {
-                val initialNoification = repository.getInitialNotifications()
-                val allDealIds = initialNoification.map { it.deal_id }
+                val initialNotification = repository.getInitialNotifications()
+                val allDealIds = initialNotification.map { it.deal_id }
                 allDealIds.forEach { id ->
                     sharedPrefManager.addSeenDealId(id)
                 }
 
-                val dealsForUi = initialNoification.map {
+                val dealsForUi = initialNotification.map {
                     it.copy(isSeen = true)
                 }
 
