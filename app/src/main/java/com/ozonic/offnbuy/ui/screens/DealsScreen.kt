@@ -77,7 +77,7 @@ fun DealsScreen(
                     ) { index, deal ->
                         DealCard(
                             deal = deal,
-                            onClick = { goToStore(deal, context) },
+                            onClick = { goToStore(deal.url, context) },
                         )
 
                         if (index >= deals.size - 12 && hasMoreItems && !isLoading) {
@@ -105,7 +105,7 @@ fun DealsScreen(
     }
 }
 
-fun goToStore(deal: DealItem, context: Context) {
-    val intent = Intent(Intent.ACTION_VIEW, deal.url?.toUri())
+fun goToStore(dealUrl: String?, context: Context) {
+    val intent = Intent(Intent.ACTION_VIEW, dealUrl?.toUri())
     context.startActivity(intent)
 }

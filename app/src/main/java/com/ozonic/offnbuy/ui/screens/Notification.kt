@@ -2,6 +2,7 @@ package com.ozonic.offnbuy.ui.screens
 
 import android.Manifest
 import android.app.Activity
+import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
 import android.os.Build
@@ -17,11 +18,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,12 +39,17 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
 import com.ozonic.offnbuy.model.NotifiedDeal
 import com.ozonic.offnbuy.util.getTimeAgo
 import com.ozonic.offnbuy.viewmodel.NotificationViewModel
+import com.ozonic.offnbuy.viewmodel.SettingsViewModel
+import io.ktor.http.ContentType
 import kotlinx.coroutines.delay
 
 fun Context.findActivity(): Activity = when (this) {
@@ -52,21 +61,48 @@ fun Context.findActivity(): Activity = when (this) {
 @Composable
 fun NotificationScreen(
     viewModel: NotificationViewModel = viewModel(),
-    navController: NavController
+    settingsViewModel: SettingsViewModel,
+    navController: NavController,
+    onLoadMore: () -> Unit,
+    hasMore: Boolean,
+    isLoading: Boolean
 ) {
     val notifications by viewModel.notifiedDeals.collectAsState()
+    val isFirstTime by viewModel.isFirstTime.collectAsState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    LaunchedEffect(Unit) {
-        delay(1000L)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ActivityCompat.requestPermissions(
-                context.findActivity(),
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                1001
-            )
+    if(isFirstTime){
+        LaunchedEffect(Unit) {
+            delay(1000L)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ActivityCompat.requestPermissions(
+                    context.findActivity(),
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    1001
+                )
+            }
         }
     }
+
+    if(isFirstTime){
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                // When the app is resumed (e.g., after returning from the permission dialog)
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    // We explicitly tell the SettingsViewModel to re-check the status.
+                    settingsViewModel.checkNotificationStatus(context.applicationContext as Application)
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+
+            // Clean up the observer when the composable is disposed.
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+            }
+        }
+    }
+
 
     if (notifications.isEmpty()) {
         Box(
@@ -81,10 +117,7 @@ fun NotificationScreen(
             contentPadding = PaddingValues(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(
-                items = notifications,
-                key = { notification -> "${notification.deal.deal_id}_${notification.timestamp}" }
-            ) { notification ->
+            itemsIndexed(notifications, key = { _, it -> it.deal.deal_id }) { index, notification ->
                 NotificationItem(
                     notification = notification,
                     onClick = {
@@ -92,6 +125,18 @@ fun NotificationScreen(
                         navController.navigate("dealDetail/${notification.deal.deal_id}")
                     }
                 )
+                if (index >= notifications.size - 3 && hasMore && !isLoading) {
+                    LaunchedEffect(key1 = index) {
+                        onLoadMore()
+                    }
+                }
+            }
+            if (isLoading && notifications.isNotEmpty()) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
             }
         }
     }
@@ -145,13 +190,13 @@ private fun NotificationItem(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "₹${notification.deal.price}",
+                        text = if(notification.deal.price!=null) "₹${notification.deal.price}" else "",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "₹${notification.deal.originalPrice}",
+                        text = if(notification.deal.originalPrice!=null) "₹${notification.deal.originalPrice}" else "",
                         style = MaterialTheme.typography.labelSmall.copy(
                             textDecoration = TextDecoration.LineThrough
                         ),

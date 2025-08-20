@@ -13,7 +13,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
 
-class DealsRepository(private val dealDao: DealDao) {
+class DealsRepository(val dealDao: DealDao) {
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
     private val ioDispatcher = Dispatchers.IO
 
@@ -39,6 +39,10 @@ class DealsRepository(private val dealDao: DealDao) {
         }
 
         snapshot.documents.lastOrNull()
+    }
+
+    suspend fun getDealFromFirestore(dealId: String): DealItem? {
+        return db.collection("deals").document(dealId).get().await().toObject(DealItem::class.java)
     }
 
     suspend fun syncNewestDeals() = withContext(ioDispatcher){

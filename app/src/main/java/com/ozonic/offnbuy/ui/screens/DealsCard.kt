@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedButton
@@ -128,6 +129,7 @@ fun DealCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
+                    Icon(imageVector = Icons.Default.Storefront, contentDescription = null, modifier = Modifier.height(12.dp))
                     Text(
                         text = deal.store ?: "Store",
                         style = MaterialTheme.typography.labelSmall,

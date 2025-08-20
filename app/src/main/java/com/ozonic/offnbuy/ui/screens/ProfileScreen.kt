@@ -1,5 +1,7 @@
 package com.ozonic.offnbuy.ui.screens
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
@@ -41,20 +44,25 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
+import coil3.compose.AsyncImage
 import com.ozonic.offnbuy.R
 import com.ozonic.offnbuy.model.ContentType
+import com.ozonic.offnbuy.model.User
 import com.ozonic.offnbuy.viewmodel.AuthState
 import com.ozonic.offnbuy.viewmodel.AuthViewModel
 
@@ -78,6 +86,21 @@ fun ProfileScreen(
     onLogout: () -> Unit,
 ) {
     val scrollState = rememberScrollState()
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
+    val isAnonymousUser = (settingsState.authState as? AuthState.Authenticated)?.user?.isAnonymous ?: true
+
+    if (showLogoutDialog) {
+        LogoutConfirmationDialog(
+            onConfirmLogout = {
+                showLogoutDialog = false
+                onLogout()
+            },
+            onDismiss = {
+                showLogoutDialog = false
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -89,29 +112,35 @@ fun ProfileScreen(
     ) {
         Spacer(modifier = Modifier.height(1.dp))
 
-        when (val state = settingsState.authState) {
-            is AuthState.Authenticated -> AuthenticatedHeader(state, onEditProfileClick)
-            else -> UnauthenticatedHeader(onLoginClick)
+        if (isAnonymousUser) {
+            UnauthenticatedHeader(onLoginClick)
+        } else {
+            val user = settingsState.authState.user
+            AuthenticatedHeader(user, onEditProfileClick)
         }
 
         SettingsSection(
-            settingsState = settingsState, // Pass the whole state object
+            settingsState = settingsState,
             onToggleDarkMode = onToggleDarkMode,
             onToggleDynamicColor = onToggleDynamicColor,
             onEditProfileClick = onEditProfileClick,
-            onNotificationSettingsClick = onNotificationSettingsClick
+            onNotificationSettingsClick = onNotificationSettingsClick,
+            isAnonymousUser = isAnonymousUser
         )
 
         AboutAndSupportSection(onContentScreenClick, onAppShare)
 
-        if (settingsState.authState is AuthState.Authenticated) {
-            LogoutButton(onLogout)
+        if (!isAnonymousUser) {
+            LogoutButton(onLogoutClick = { showLogoutDialog = true })
         }
+    }
+    if(settingsState.authState is AuthState.Loading){
+        LoadingOverlay(modifier = Modifier.fillMaxSize())
     }
 }
 
 @Composable
-fun AuthenticatedHeader(state: AuthState.Authenticated, onEditProfileClick: () -> Unit) {
+fun AuthenticatedHeader(user: User, onEditProfileClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -123,35 +152,24 @@ fun AuthenticatedHeader(state: AuthState.Authenticated, onEditProfileClick: () -
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Box(
+            AsyncImage(
+                model = user.photoUrl,
+                contentDescription = "Profile Picture",
+                placeholder = painterResource(id = R.drawable.ic_profile),
+                error = painterResource(id = R.drawable.ic_profile),
                 modifier = Modifier
                     .size(56.dp)
                     .clip(CircleShape)
-                    .clickable(onClick = onEditProfileClick),
-                contentAlignment = Alignment.Center
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = (state.user.displayName?.firstOrNull() ?: 'U').toString().uppercase(),
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
-                }
-            }
+                    .clickable(onClick = onEditProfileClick)
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Hi, ${state.user.displayName ?: "User"}",
+                    text = "Hi, ${user.displayName ?: "User"}",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = state.user.email ?: state.user.phoneNumber ?: "Welcome back",
+                    text = user.email ?: user.phoneNumber ?: "Welcome back",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -202,11 +220,12 @@ fun UnauthenticatedHeader(onLoginClick: () -> Unit) {
 
 @Composable
 private fun SettingsSection(
-    settingsState: SettingsState, // Now receives the whole state
+    settingsState: SettingsState,
     onToggleDarkMode: () -> Unit,
     onToggleDynamicColor: () -> Unit,
     onEditProfileClick: () -> Unit,
-    onNotificationSettingsClick: () -> Unit
+    onNotificationSettingsClick: () -> Unit,
+    isAnonymousUser: Boolean
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         ProfileOption(
@@ -230,7 +249,7 @@ private fun SettingsSection(
                 )
             }
         )
-        if(settingsState.authState is AuthState.Authenticated){
+        if (settingsState.authState is AuthState.Authenticated && !isAnonymousUser) {
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             ProfileOption(
                 text = "Edit Profile",
@@ -281,9 +300,9 @@ private fun AboutAndSupportSection(
 }
 
 @Composable
-private fun LogoutButton(onLogout: () -> Unit) {
+private fun LogoutButton(onLogoutClick: () -> Unit) {
     Button(
-        onClick = onLogout,
+        onClick = onLogoutClick,
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -296,6 +315,31 @@ private fun LogoutButton(onLogout: () -> Unit) {
         Spacer(modifier = Modifier.size(ButtonDefaults.IconSpacing))
         Text("Logout", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(vertical = 8.dp))
     }
+}
+
+@Composable
+private fun LogoutConfirmationDialog(
+    onConfirmLogout: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Confirm Logout") },
+        text = { Text("Are you sure you want to log out?") },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirmLogout,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Logout")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
@@ -27,6 +28,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -53,7 +56,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -67,14 +69,20 @@ import com.ozonic.offnbuy.ui.theme.OffnBuyTheme
 import com.ozonic.offnbuy.viewmodel.AuthState
 import com.ozonic.offnbuy.viewmodel.AuthViewModel
 import com.ozonic.offnbuy.viewmodel.DealsViewModel
+import com.ozonic.offnbuy.viewmodel.MainViewModel
 import com.ozonic.offnbuy.viewmodel.NotificationViewModel
 import com.ozonic.offnbuy.viewmodel.SettingsViewModel
-import com.ozonic.offnbuy.viewmodel.SettingsViewModelFactory
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(dealIdState: MutableState<String?>, authViewModel: AuthViewModel) {
+fun MainScreen(
+    dealIdState: MutableState<String?>,
+    authViewModel: AuthViewModel,
+    settingsViewModel: SettingsViewModel,
+    mainViewModel: MainViewModel,
+    snackbarHostState: SnackbarHostState
+) {
 
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -82,13 +90,11 @@ fun MainScreen(dealIdState: MutableState<String?>, authViewModel: AuthViewModel)
 
     // ViewModel Instantiations
     val dealsViewModel: DealsViewModel = viewModel()
-    val notificationViewModel = remember { NotificationViewModel(context.applicationContext as Application) }
-    val settingsViewModel: SettingsViewModel = viewModel(
-        factory = SettingsViewModelFactory(application, authViewModel)
-    )
-    val authState by authViewModel.authState.collectAsState()
+    val notificationViewModel = remember { NotificationViewModel(application) }
 
     // State observers
+    val authState by authViewModel.authState.collectAsState()
+    val isOnline by mainViewModel.isOnline.collectAsState()
     val refreshCount by dealsViewModel.refreshCount.collectAsState()
     val notificationCount by notificationViewModel.unseenCount.collectAsState()
     val newAvailable by dealsViewModel.newDealAvailable.collectAsState()
@@ -145,7 +151,7 @@ fun MainScreen(dealIdState: MutableState<String?>, authViewModel: AuthViewModel)
 
 
     LaunchedEffect(navBackStackEntry) {
-        showBottomBar = when(currentRoute){
+        showBottomBar = when (currentRoute) {
             NavigationItem.ContentScreen.route -> false
             NavigationItem.Search.route -> false
             NavigationItem.DealDetailScreen.route -> false
@@ -154,7 +160,7 @@ fun MainScreen(dealIdState: MutableState<String?>, authViewModel: AuthViewModel)
             else -> true
         }
 
-        topBarState = when(currentRoute){
+        topBarState = when (currentRoute) {
             NavigationItem.Home.route -> TopBarState(
                 title = {
                     Row(
@@ -187,7 +193,12 @@ fun MainScreen(dealIdState: MutableState<String?>, authViewModel: AuthViewModel)
                 },
                 navigationIcon = {
                     Icon(
-                        modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 16.dp, bottom = 16.dp),
+                        modifier = Modifier.padding(
+                            start = 8.dp,
+                            end = 4.dp,
+                            top = 16.dp,
+                            bottom = 16.dp
+                        ),
                         painter = painterResource(R.drawable.icon),
                         contentDescription = "Icon",
                         tint = MaterialTheme.colorScheme.primary
@@ -208,7 +219,7 @@ fun MainScreen(dealIdState: MutableState<String?>, authViewModel: AuthViewModel)
                             expanded = isFabExpanded,
                             onClick = { dealsViewModel.refreshDeals() },
                             icon = { Icon(Icons.Default.Refresh, contentDescription = "refresh") },
-                            text = { Text("Refresh Deals")}
+                            text = { Text("Refresh Deals") }
                         )
                     }
                 },
@@ -218,19 +229,23 @@ fun MainScreen(dealIdState: MutableState<String?>, authViewModel: AuthViewModel)
             )
 
             NavigationItem.Links.route -> TopBarState(
-                title = {Text(
-                    "Links",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                ) },
+                title = {
+                    Text(
+                        "Links",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                },
             )
 
             NavigationItem.Notifications.route -> TopBarState(
-                title = { Text(
-                    "Notifications",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                ) },
+                title = {
+                    Text(
+                        "Notifications",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                },
                 actions = {
                     Box {
                         IconButton(onClick = { expanded = true }) {
@@ -257,13 +272,17 @@ fun MainScreen(dealIdState: MutableState<String?>, authViewModel: AuthViewModel)
                     }
                 }
             )
+
             NavigationItem.Profile.route -> TopBarState(
-                title = { Text(
-                    "Profile",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                ) },
+                title = {
+                    Text(
+                        "Profile",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                },
             )
+
             NavigationItem.EditProfileScreen.route -> TopBarState(
                 title = {
                     Text(
@@ -276,11 +295,16 @@ fun MainScreen(dealIdState: MutableState<String?>, authViewModel: AuthViewModel)
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 },
 
-            )
+                )
+
             else -> TopBarState(isVisible = false)
         }
     }
@@ -309,30 +333,34 @@ fun MainScreen(dealIdState: MutableState<String?>, authViewModel: AuthViewModel)
                         Modifier
                     }
                 ),
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             topBar = {
-              if(topBarState.isVisible){
-                  TopAppBar(
-                      title = { topBarState.title?.invoke() },
-                      navigationIcon = { topBarState.navigationIcon?.invoke() },
-                      actions = { topBarState.actions?.invoke() },
-                      windowInsets = WindowInsets.displayCutout,
-                      scrollBehavior = topBarState.scrollBehavior
-                  )
-              }
+                if (topBarState.isVisible) {
+                    TopAppBar(
+                        title = { topBarState.title?.invoke() },
+                        navigationIcon = { topBarState.navigationIcon?.invoke() },
+                        actions = { topBarState.actions?.invoke() },
+                        windowInsets = WindowInsets.displayCutout,
+                        scrollBehavior = topBarState.scrollBehavior
+                    )
+                }
             },
             floatingActionButton = {
                 topBarState.floatingActionButton?.invoke()
             },
             floatingActionButtonPosition = topBarState.floatingActionButtonPosition,
             bottomBar = {
-                if(showBottomBar){
-                    BottomNavBar(
-                        navController = navController,
-                        notificationViewModel = notificationViewModel
-                    )
+                Column {
+                    OfflineBanner(isOnline = isOnline)
+                    if (showBottomBar) {
+                        BottomNavBar(
+                            navController = navController,
+                            notificationViewModel = notificationViewModel
+                        )
+                    }
                 }
             },
-           // contentWindowInsets = ScaffoldDefaults.contentWindowInsets
+            // contentWindowInsets = ScaffoldDefaults.contentWindowInsets
         ) { paddingValues ->
             AppNavigation(
                 navHostController = navController,
@@ -376,29 +404,10 @@ fun ReAuthDialog(message: String?, navController: NavController, onDismiss: () -
     )
 }
 
-fun goToNotificationSettings(context: Context){
+fun goToNotificationSettings(context: Context) {
     val intent: Intent = Intent().apply {
         action = Settings.ACTION_APP_NOTIFICATION_SETTINGS
         putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
     }
-    context.startActivity(intent)
-}
-
-fun appShare(context:Context){
-    val shareText = "Check out OffnBuy for the best deals! Download it here:\n" +
-            "https://play.google.com/store/apps/details?id=${context.packageName}"
-
-    val sendIntent = Intent().apply {
-        action = Intent.ACTION_SEND
-        putExtra(Intent.EXTRA_TEXT, shareText)
-        type = "text/plain"
-    }
-
-    val shareIntent = Intent.createChooser(sendIntent, "Share OffnBuy via")
-    context.startActivity(shareIntent)
-}
-
-fun goToUrl(context: Context, url: String){
-    val intent = Intent(Intent.ACTION_VIEW, url.toUri())
     context.startActivity(intent)
 }

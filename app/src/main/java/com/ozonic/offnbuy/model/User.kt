@@ -8,5 +8,6 @@ data class User(
     val email: String?,
     val phoneNumber: String?,
     val photoUrl: Uri?,
-    val isEmailVerified: Boolean
+    val isEmailVerified: Boolean,
+    val isAnonymous: Boolean
 )

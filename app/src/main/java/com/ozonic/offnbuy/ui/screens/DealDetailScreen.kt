@@ -1,141 +1,204 @@
 package com.ozonic.offnbuy.ui.screens
 
-import android.content.Context
 import android.content.Intent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
-import com.google.firebase.firestore.FirebaseFirestore
 import com.ozonic.offnbuy.model.DealItem
 import com.ozonic.offnbuy.util.getTimeAgo
+import com.ozonic.offnbuy.viewmodel.DealDetailUiState
+import com.ozonic.offnbuy.viewmodel.DealDetailViewModel
+import com.ozonic.offnbuy.viewmodel.DealDetailViewModelFactory
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DealDetailScreen(dealId: String, context: Context) {
-    var deal by remember { mutableStateOf<DealItem?>(null) }
+fun DealDetailScreen(
+    dealId: String,
+    navController: NavController
+) {
+    val context = LocalContext.current
+    val factory =
+        DealDetailViewModelFactory(context.applicationContext as android.app.Application, dealId)
+    val viewModel: DealDetailViewModel = viewModel(factory = factory)
+    val uiState by viewModel.uiState.collectAsState()
 
-    LaunchedEffect(dealId) {
-        FirebaseFirestore.getInstance().collection("deals").document(dealId).get()
-            .addOnSuccessListener {
-                deal = it.toObject(DealItem::class.java)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Deal Details") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                windowInsets = WindowInsets(top = 0.dp)
+            )
+        },
+        floatingActionButton = {
+            if (uiState is DealDetailUiState.Success) {
+                val deal = (uiState as DealDetailUiState.Success).deal
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, deal.url?.toUri())
+                        context.startActivity(intent)
+                    },
+                    icon = { Icon(Icons.Default.ShoppingCart, contentDescription = null) },
+                    text = { Text("Shop Now", fontWeight = FontWeight.Bold) },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
             }
-    }
+        },
+        contentWindowInsets = WindowInsets(top = 0.dp),
+        floatingActionButtonPosition = FabPosition.Center
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            when (val state = uiState) {
+                is DealDetailUiState.Loading -> {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                }
 
-    deal?.let {
-        // Show deal UI here
-        DealView(modifier = Modifier, it = it, context = context)
-    } ?: run {
-        Text("Loading...", modifier = Modifier.padding(16.dp))
+                is DealDetailUiState.Success -> {
+                    DealDetailContent(deal = state.deal)
+                }
+
+                is DealDetailUiState.Error -> {
+                    Text(
+                        text = state.message,
+                        modifier = Modifier.align(Alignment.Center),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
+        }
     }
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-fun DealView(modifier: Modifier = Modifier, it: DealItem, context: Context) {
-    Box(modifier = Modifier.padding(16.dp)) {
-        Card(
-            modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(4.dp)
+fun DealDetailContent(deal: DealItem) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 80.dp) // Space for the FAB
+    ) {
+        AsyncImage(
+            model = deal.image,
+            contentDescription = deal.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(4f / 3f)
+        )
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+            tonalElevation = 4.dp,
         ) {
             Column(
-                modifier = modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(it.image)
-                            .crossfade(true)
-                            .build(),
-                        contentScale = ContentScale.Fit,
-                        filterQuality = FilterQuality.Low,
-                        contentDescription = it.title,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+                // Title
                 Text(
-                    it.title ?: "",
-                    fontWeight = FontWeight.Medium,
-                    style = MaterialTheme.typography.labelLarge
+                    text = deal.title ?: "No Title",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
+
+                // Pricing Section
                 Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        it.originalPrice?:"",
-                        textDecoration = TextDecoration.LineThrough,
-                        style = MaterialTheme.typography.labelMedium
+                        text = if (deal.price != null) "₹${deal.price}" else "",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        it.price?:"",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.labelLarge
+                        text = if (deal.originalPrice != null) "₹${deal.originalPrice}" else "",
+                        style = MaterialTheme.typography.titleSmall.copy(textDecoration = TextDecoration.LineThrough),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (!deal.discount.isNullOrBlank()) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                            shape = MaterialTheme.shapes.small,
+                        ) {
+                            Text(
+                                text = deal.discount,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
                 }
+
+                HorizontalDivider()
+
+                // Metadata Section
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(getTimeAgo(it.posted_on?:""), style = MaterialTheme.typography.labelSmall)
-                    Text(
-                        it.store?:"Others",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    InfoChip(icon = Icons.Default.Storefront, text = deal.store ?: "Unknown Store")
+                    InfoChip(icon = Icons.Default.Schedule, text = getTimeAgo(deal.posted_on))
                 }
-                Button(modifier = Modifier.fillMaxWidth(), onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, it.redirectUrl?.toUri())
-                    context.startActivity(intent)
-                }) {
-                    Text("Buy Now")
-                }
-            }
-        }
-        Surface(modifier = Modifier.padding(8.dp), shape = MaterialTheme.shapes.medium) {
-            Box(modifier = Modifier.padding(8.dp)) {
-                Text(
-                    it.discount?:"No Discount",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium
-                )
             }
         }
     }
+}
 
+@Composable
+fun InfoChip(icon: ImageVector, text: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }

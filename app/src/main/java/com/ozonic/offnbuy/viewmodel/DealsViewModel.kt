@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -47,16 +48,24 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
     val refreshCount: StateFlow<Int> = _refreshCount
 
     init {
-            loadMoreDeals(isInitial = true)
+        // This starts the initial asynchronous load.
+        loadMoreDeals(isInitial = true)
 
         viewModelScope.launch {
-            deals.collectLatest {currentDeals->
-                val latestTimeStamp = currentDeals.firstOrNull()?.posted_on
-                if(latestTimeStamp != null){
-                    newDealsListener?.remove()
-                    newDealsListener = repository.listenForNewDeals(latestTimeStamp) { newDeal ->
-                        if(currentDeals.none {it.deal_id == newDeal.deal_id}){
-                            _newDealAvailable.value = true}
+            // This flow will now only proceed when `isInitialLoad` becomes false.
+            combine(deals, isInitialLoad) { currentDeals, isInitial ->
+                Pair(currentDeals, isInitial)
+            }.collectLatest { (currentDeals, isInitial) ->
+                // Only attach the real-time listener AFTER the initial load is complete.
+                if (!isInitial) {
+                    val latestTimeStamp = currentDeals.firstOrNull()?.posted_on
+                    if (latestTimeStamp != null) {
+                        newDealsListener?.remove()
+                        newDealsListener = repository.listenForNewDeals(latestTimeStamp) { newDeal ->
+                            if (currentDeals.none { it.deal_id == newDeal.deal_id }) {
+                                _newDealAvailable.value = true
+                            }
+                        }
                     }
                 }
             }

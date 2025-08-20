@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,13 +16,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Error
@@ -40,12 +46,15 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -55,20 +64,27 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.net.toUri
+import coil3.compose.AsyncImage
 import com.ozonic.offnbuy.model.ApiResponse
+import com.ozonic.offnbuy.model.SupportedStore
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GenerateLink(
     recentLinks: List<String>,
     productLink: String,
+    hasMoreLinks: Boolean,
+    onLoadMore: () -> Unit,
     onGenerateLink: () -> Unit,
     clipboardPaste: () -> Unit,
     onProductLinkChange: (String) -> Unit,
     listLinkClick: (String) -> Unit,
+    clearProductLink: () -> Unit,
     generatedLink: ApiResponse?,
+    supportedStores: List<SupportedStore>,
     onDismissDialog: () -> Unit,
     isLoading: Boolean,
+    isListLoading: Boolean,
     isError: Boolean,
 ) {
     val context = LocalContext.current
@@ -118,6 +134,10 @@ fun GenerateLink(
             }
 
             item {
+                SupportedStoresRow(stores = supportedStores)
+            }
+
+            item {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     OutlinedTextField(
                         value = productLink,
@@ -131,8 +151,14 @@ fun GenerateLink(
                                 if (isError) {
                                     Icon(Icons.Filled.Error, "error", tint = MaterialTheme.colorScheme.error)
                                 }
-                                IconButton(onClick = clipboardPaste) {
-                                    Icon(Icons.Default.ContentPaste, contentDescription = "Paste from clipboard")
+                                if(productLink.isBlank()){
+                                    IconButton(onClick = clipboardPaste) {
+                                        Icon(Icons.Default.ContentPaste, contentDescription = "Paste from clipboard")
+                                    }
+                                }else{
+                                    IconButton(onClick = clearProductLink) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear product link")
+                                    }
                                 }
                             }
                         },
@@ -196,7 +222,7 @@ fun GenerateLink(
                     )
                 }
 
-                items(recentLinks) { link ->
+                itemsIndexed(recentLinks) { index,link ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = { listLinkClick(link) }
@@ -218,30 +244,70 @@ fun GenerateLink(
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                         )
                     }
+                    if (index >= recentLinks.size - 3 && hasMoreLinks) {
+                        LaunchedEffect(key1 = index) {
+                            onLoadMore()
+                        }
+                    }
+                }
+                if (isListLoading && recentLinks.isNotEmpty() && !isLoading) {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    }
                 }
             }
         }
 
     if (isLoading) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f)),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator()
-        }
+        LoadingOverlay(modifier = Modifier.fillMaxSize())
     }
 }
 
+
+@Composable
+fun SupportedStoresRow(stores: List<SupportedStore>) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            "Supported Stores",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp)
+        ) {
+            items(stores, key = { it.name }) { store ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Card(shape = MaterialTheme.shapes.extraLarge, elevation = CardDefaults.cardElevation(2.dp)) {
+                        AsyncImage(
+                            model = store.logoUrl,
+                            contentDescription = store.name,
+                            modifier = Modifier.size(56.dp)
+                        )
+                    }
+                    Text(text = store.name, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
 @Composable
 fun GenerateLinkDialog(apiResponse: ApiResponse, onDismissDialog: () -> Unit, context: Context) {
+    Log.d("ApiResponse", "GenerateLinkDialog: $apiResponse")
     AlertDialog(
         onDismissRequest = onDismissDialog,
         title = { Text(if (apiResponse.success == 1) "Link Generated!" else "Error") },
-        text = { Text(apiResponse.data ?: apiResponse.message ?: "An Unknown Error Occurred") },
+        text = { Text(if(apiResponse.data?.startsWith("We could not locate an affiliate URL") == true) "This store is not supported yet. Please try a link from a different store." else apiResponse.data ?: apiResponse.message ?: "An Unknown Error Occurred") },
         confirmButton = {
-            if (apiResponse.success == 1 && apiResponse.data != null) {
+            if (apiResponse.success == 1 && apiResponse.data != null && apiResponse.data.startsWith("http")) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(

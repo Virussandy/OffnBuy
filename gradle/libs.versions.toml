@@ -1,5 +1,6 @@
 [versions]
 agp = "8.12.0"
+appUpdateKtx = "2.1.0"
 compose = "1.0.0-beta01"
 datastorePreferences = "1.1.7"
 firebaseBom = "34.1.0"
@@ -31,6 +32,7 @@ androidx-material-icons-extended-android = { module = "androidx.compose.material
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "kspVersion" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "roomVersion" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "roomVersion" }
+app-update-ktx = { module = "com.google.android.play:app-update-ktx", version.ref = "appUpdateKtx" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version = "3.3.0" }
 coil-network-ktor3 = { module = "io.coil-kt.coil3:coil-network-ktor3", version = "3.3.0" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version = "3.3.0" }

@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.annotation.RequiresPermission
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -38,29 +39,63 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     private val _unseenCount = MutableStateFlow(0)
     val unseenCount: StateFlow<Int> = _unseenCount.asStateFlow()
 
+    private var lastNotificationKey: String? = null
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    private val _hasMoreNotifications = MutableStateFlow(true)
+    val hasMoreNotifications: StateFlow<Boolean> = _hasMoreNotifications.asStateFlow()
+    private val _isFirstTime = MutableStateFlow(false)
+    val isFirstTime: StateFlow<Boolean> = _isFirstTime.asStateFlow()
+
 
 
     init {
         viewModelScope.launch {
-            if (sharedPrefManager.isFirstTimeRun()) {
-                val initialNotification = repository.getInitialNotifications()
+            // --- THIS BLOCK IS PRESERVED ---
+            _isFirstTime.value = sharedPrefManager.isFirstTimeRun()
+            if (_isFirstTime.value) {
+                // First time run: load all initial notifications to mark them as seen.
+                val (initialNotification, _) = repository.getNotifications(100) // Fetch a larger batch on first run
                 val allDealIds = initialNotification.map { it.deal_id }
                 allDealIds.forEach { id ->
                     sharedPrefManager.addSeenDealId(id)
                 }
-
-                val dealsForUi = initialNotification.map {
+                val dealsForUi = initialNotification.take(10).map { // But only show the first 10
                     it.copy(isSeen = true)
                 }
-
                 _notifiedDeals.value = dealsForUi.sortedByDescending { it.timestamp }
                 _unseenCount.value = 0
-
+                lastNotificationKey = initialNotification.getOrNull(9)?.deal?.deal_id // Set the key for next page
                 sharedPrefManager.setFirstTimeRun(false)
             } else {
-                loadSeenDealIds()
+                // --- THIS BLOCK IS MODIFIED ---
+                // Not the first time, so just load the first page.
+                loadMoreNotifications()
             }
             attachRealtimeListeners()
+        }
+    }
+
+    fun loadMoreNotifications() {
+        // Prevent multiple loads at the same time
+        if (isLoading.value || !_hasMoreNotifications.value) return
+
+        viewModelScope.launch {
+            _isLoading.value = true
+            // Fetch the next page from the repository
+            val (newDeals, nextKey) = repository.getNotifications(10, lastNotificationKey)
+
+            if (newDeals.isNotEmpty()) {
+                val seenDealIds = sharedPrefManager.getSeenDealsIds()
+                val dealsForUi = newDeals.map { it.copy(isSeen = seenDealIds.contains(it.deal_id)) }
+
+                // Append new deals to the existing list, ensuring no duplicates
+                _notifiedDeals.value = (_notifiedDeals.value + dealsForUi).distinctBy { it.deal_id }.sortedByDescending { it.timestamp }
+                lastNotificationKey = nextKey
+            } else {
+                _hasMoreNotifications.value = false
+            }
+            _isLoading.value = false
         }
     }
 

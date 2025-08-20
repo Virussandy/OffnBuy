@@ -76,7 +76,11 @@ fun AuthScreen(
     var previousState by remember { mutableStateOf<AuthState>(AuthState.Unauthenticated) }
 
     LaunchedEffect(authState) {
-        if (authState is AuthState.Authenticated) {
+        val currentState = authState
+
+        // Now, perform the check and use the local variable.
+        // The compiler can now safely smart-cast 'currentState'.
+        if (currentState is AuthState.Authenticated && !currentState.user.isAnonymous) {
             Toast.makeText(context, "Login Successful!", Toast.LENGTH_SHORT).show()
             onAuthComplete()
         }
@@ -87,6 +91,23 @@ fun AuthScreen(
 
         // Step 2: Draw the background UI.
         when (backgroundState) {
+            // Treat anonymous users the same as unauthenticated users for this screen's UI.
+            is AuthState.Authenticated -> {
+                if (backgroundState.user.isAnonymous) {
+                    LoginOptionsScreen(
+                        navController = navController,
+                        phoneNumber = phoneNumber,
+                        onPhoneNumberChange = { phoneNumber = it },
+                        error = null, // No error message on initial view
+                        onSendOtp = { phone -> authViewModel.sendOtp(phone, context.findActivity()) }
+                    )
+                } else {
+                    // If the user is NOT anonymous, they have just logged in.
+                    // Show a blank screen while the LaunchedEffect navigates away.
+                    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+                }
+            }
+
             is AuthState.Unauthenticated, is AuthState.AuthError -> {
                 LoginOptionsScreen(
                     navController = navController,
@@ -104,32 +125,17 @@ fun AuthScreen(
                     onChangeNumber = { authViewModel.cancelVerification() }
                 )
             }
-            is AuthState.Authenticated -> {
-                // When authenticated, show a blank background to avoid flicker during navigation.
-                Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
-            }
             else -> {
-                // Handles the initial Loading state where previousState is also loading.
-                Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+                // Handles the initial Loading state
+//                Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+                LoadingOverlay(modifier = Modifier.fillMaxSize())
             }
         }
 
         // Step 3: If the current state is Loading, draw the transparent overlay on TOP of the UI from Step 2.
         if (authState is AuthState.Loading) {
-            LoadingOverlay()
+            LoadingOverlay(modifier = Modifier.fillMaxSize())
         }
-    }
-}
-
-@Composable
-fun LoadingOverlay() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)), // Semi-transparent overlay
-        contentAlignment = Alignment.Center
-    ) {
-        CircularProgressIndicator()
     }
 }
 
@@ -264,9 +270,13 @@ fun OtpScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
-            enabled = otpValue.length == 6
+            enabled = otpValue.length == 6 && !state.isVerifying
         ) {
-            Text("Verify", fontSize = 16.sp)
+            if (state.isVerifying) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            } else {
+                Text("Verify", fontSize = 16.sp)
+            }
         }
         Spacer(Modifier.height(16.dp))
 
