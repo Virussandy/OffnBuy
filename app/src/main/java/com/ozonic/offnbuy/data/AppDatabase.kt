@@ -1,7 +1,6 @@
 package com.ozonic.offnbuy.data
 
 import android.content.Context
-import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -12,7 +11,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.ozonic.offnbuy.model.DealItem
 import com.ozonic.offnbuy.model.FavoriteDeal
 import com.ozonic.offnbuy.model.GeneratedLink
+import com.ozonic.offnbuy.model.NotifiedDeal
 import com.ozonic.offnbuy.model.SupportedStore
+import com.ozonic.offnbuy.model.UserProfile
 import java.util.Date
 
 
@@ -27,13 +28,16 @@ class Converters {
         return date?.time
     }
 }
-@Database(entities = [DealItem::class, GeneratedLink::class, FavoriteDeal::class, SupportedStore::class], version = 5, exportSchema = false)
+@Database(entities = [DealItem::class, GeneratedLink::class, FavoriteDeal::class, SupportedStore::class, UserProfile::class, NotifiedDeal::class], version = 7, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dealDao(): DealDao
     abstract fun generatedLinkDao(): GeneratedLinkDao
     abstract fun favoriteDealDao(): FavoriteDealDao
     abstract fun supportedStoreDao(): SupportedStoreDao
+    abstract fun userProfileDao(): UserProfileDao
+
+    abstract fun notifiedDealDao(): NotifiedDealDao
 
     companion object {
         @Volatile
@@ -41,8 +45,6 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // This log is our proof that the migration is running
-                Log.d("DB_MIGRATION", "MIGRATION FROM 1 TO 2 IS RUNNING")
                 db.execSQL("CREATE TABLE `generated_links` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `url` TEXT NOT NULL)")
             }
         }
@@ -73,26 +75,26 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
 
+        val MIGRATION_5_6 = object : Migration(5, 6){
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `user_profile` (`uid` TEXT NOT NULL, `name` TEXT, `email` TEXT, `phone` TEXT, `profilePic` TEXT, PRIMARY KEY(`uid`))")
+            }
+        }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // This SQL creates the new table based on the NotifiedDeal entity
+                db.execSQL("CREATE TABLE IF NOT EXISTS `notified_deals` (`deal_id` TEXT NOT NULL, `isSeen` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `deal_deal_id` TEXT NOT NULL, `deal_discount` TEXT, `deal_image` TEXT, `deal_originalPrice` TEXT, `deal_posted_on` TEXT, `deal_price` TEXT, `deal_redirectUrl` TEXT, `deal_store` TEXT, `deal_title` TEXT, `deal_url` TEXT, PRIMARY KEY(`deal_id`))")
+            }
+        }
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this){
-                Log.d("DB_SETUP", "Database instance is null, creating new one.") // <-- Log 1
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "offnbuy_database"
                 )
-                    .addCallback(object : Callback() { // <-- Log 2 (The most important one)
-                        override fun onCreate(db: SupportSQLiteDatabase) {
-                            super.onCreate(db)
-                            Log.d("DB_SETUP", "Database has been CREATED. Version: ${db.version}")
-                        }
-                        override fun onOpen(db: SupportSQLiteDatabase) {
-                            super.onOpen(db)
-                            Log.d("DB_SETUP", "Database has been OPENED. Version: ${db.version}")
-                        }
-                    })
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build()
                 INSTANCE = instance
                 instance

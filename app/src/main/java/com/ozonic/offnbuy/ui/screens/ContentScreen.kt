@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -53,12 +55,12 @@ fun ContentScreen(contentType: ContentType, modifier: Modifier = Modifier) {
 
 @Composable
 fun TermsAndConditionsScreen(modifier: Modifier = Modifier) {
-    WebViewScreen(url = "https://example.com/terms-and-conditions")
+    WebViewScreen(url = "https://offnbuy.netlify.app/#/terms")
 }
 
 @Composable
 fun PrivacyPolicyScreen(modifier: Modifier = Modifier) {
-    WebViewScreen(url = "https://example.com/privacy-policy")
+    WebViewScreen(url = "https://offnbuy.netlify.app/#/privacy")
 }
 
 // In ContentScreen.kt
@@ -80,6 +82,28 @@ fun HelpAndSupportScreen(modifier: Modifier = Modifier) {
             )
         }
 
+        // --- DISCLAIMER ABOUT DEALS ---
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "A Note About Deals",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Text(
+                        "The deals listed in our app may not always be accurate as they can be for a very short period. We highly recommend you compare the price listed in the deal with the price on the actual website before making a purchase.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+            }
+        }
+
         // --- FAQ Section ---
         item {
             Text(
@@ -89,38 +113,34 @@ fun HelpAndSupportScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
-        // Example for one FAQ item
-        item {
-            var expanded by remember { mutableStateOf(false) }
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded }
-                    .padding(vertical = 8.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "How do notifications work?",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Icon(
-                        imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (expanded) "Collapse" else "Expand"
-                    )
-                }
-                if (expanded) {
-                    Text(
-                        "Our app sends notifications to alert you of new deals. Please make sure you have enabled notification permissions in your phone's settings to receive them.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 8.dp, start = 8.dp, end = 8.dp)
-                    )
-                }
-            }
-            HorizontalDivider()
-        }
-        // ... Add more FAQ items here ...
 
+        item {
+            FaqItem(
+                question = "How do notifications work?",
+                answer = "Our app sends notifications for new deals. To receive them, please ensure you have granted notification permissions. You can check this in your phone's Settings > Apps > OffnBuy > Notifications."
+            )
+        }
+
+        item {
+            FaqItem(
+                question = "How do I generate an affiliate link?",
+                answer = "Navigate to the 'Links' tab from the bottom menu. Paste a product URL from a supported store into the text field and tap 'Generate Link'. You can then copy or share your new link."
+            )
+        }
+
+        item {
+            FaqItem(
+                question = "Why can't I find a deal when I search?",
+                answer = "Our search feature looks through the most recent deals. If a deal is old or has expired, it may no longer appear in search results."
+            )
+        }
+
+        item {
+            FaqItem(
+                question = "Does OffnBuy sell these products?",
+                answer = "No, OffnBuy does not sell any products. We are a platform that finds and shares deals from various online stores. All purchases are made directly on the respective store's website."
+            )
+        }
 
         // --- Contact Us Section ---
         item {
@@ -143,11 +163,42 @@ fun HelpAndSupportScreen(modifier: Modifier = Modifier) {
             SupportOption(
                 text = "Report a Bug",
                 icon = Icons.Default.BugReport,
-                onClick = { reportBugByEmail(context)}
+                onClick = { reportBugByEmail(context) }
             )
             HorizontalDivider()
         }
     }
+}
+
+@Composable
+private fun FaqItem(question: String, answer: String) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded }
+            .padding(vertical = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = question,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (expanded) "Collapse" else "Expand"
+            )
+        }
+        if (expanded) {
+            Text(
+                text = answer,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 8.dp, start = 8.dp, end = 8.dp)
+            )
+        }
+    }
+    HorizontalDivider()
 }
 
 @Composable
@@ -189,6 +240,7 @@ fun WebViewScreen(url: String) {
                         isLoading = false
                     }
                 }
+                settings.javaScriptEnabled = true
                 loadUrl(url)
             }
         })

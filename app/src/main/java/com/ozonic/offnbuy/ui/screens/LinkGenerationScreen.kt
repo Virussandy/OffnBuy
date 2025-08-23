@@ -4,10 +4,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.util.Log
-import androidx.compose.foundation.background
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,22 +20,24 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -46,15 +46,16 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Shapes
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -73,8 +74,6 @@ import com.ozonic.offnbuy.model.SupportedStore
 fun GenerateLink(
     recentLinks: List<String>,
     productLink: String,
-    hasMoreLinks: Boolean,
-    onLoadMore: () -> Unit,
     onGenerateLink: () -> Unit,
     clipboardPaste: () -> Unit,
     onProductLinkChange: (String) -> Unit,
@@ -84,10 +83,35 @@ fun GenerateLink(
     supportedStores: List<SupportedStore>,
     onDismissDialog: () -> Unit,
     isLoading: Boolean,
-    isListLoading: Boolean,
     isError: Boolean,
 ) {
     val context = LocalContext.current
+    var selectedLinkForAction by remember { mutableStateOf<String?>(null) }
+
+    selectedLinkForAction?.let { link ->
+        LinkActionDialog(
+            link = link,
+            onDismiss = { selectedLinkForAction = null },
+            onCopy = {
+                val clipboard = getSystemService(context, ClipboardManager::class.java)
+                val clip = ClipData.newPlainText("Generated Link", it)
+                clipboard?.setPrimaryClip(clip)
+                Toast.makeText(context, "Link copied!", Toast.LENGTH_SHORT).show()
+            },
+            onShare = {
+                val sendIntent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, it)
+                    type = "text/plain"
+                }
+                val shareIntent = Intent.createChooser(sendIntent, "Share Link via")
+                context.startActivity(shareIntent)
+            },
+            onOpen = {
+                listLinkClick(it)
+            }
+        )
+    }
 
     if (generatedLink != null) {
         GenerateLinkDialog(
@@ -96,118 +120,128 @@ fun GenerateLink(
             context = context
         )
     }
-        LazyColumn(
+    Column(modifier = Modifier.fillMaxSize()) {
+        // This Column contains all the non-scrollable UI at the top.
+        // It's given its own verticalScroll for smaller screen sizes.
+        Column(
             modifier = Modifier
-                .fillMaxSize(),
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(16.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            "Generate Affiliate Links",
-                            style = MaterialTheme.typography.titleLarge,
-                            textAlign = TextAlign.Center,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Icon(
-                            imageVector = Icons.Default.Handshake,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Text(
-                            "Paste any product URL to create your link. Every click helps cover our server costs and keeps the app free for everyone.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                    Text(
+                        "Generate Affiliate Links",
+                        style = MaterialTheme.typography.titleLarge,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Handshake,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        "Paste any product URL to create your link. Every click helps cover our server costs and keeps the app free for everyone.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
 
-            item {
-                SupportedStoresRow(stores = supportedStores)
-            }
+            SupportedStoresRow(stores = supportedStores)
 
-            item {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    OutlinedTextField(
-                        value = productLink,
-                        onValueChange = onProductLinkChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Paste Product Link Here...") },
-//                        singleLine = true,
-                        isError = isError,
-                        trailingIcon = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (isError) {
-                                    Icon(Icons.Filled.Error, "error", tint = MaterialTheme.colorScheme.error)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                OutlinedTextField(
+                    value = productLink,
+                    onValueChange = onProductLinkChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Paste Product Link Here...") },
+                    isError = isError,
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isError) {
+                                Icon(Icons.Filled.Error, "error", tint = MaterialTheme.colorScheme.error)
+                            }
+                            if (productLink.isBlank()) {
+                                IconButton(onClick = clipboardPaste) {
+                                    Icon(Icons.Default.ContentPaste, contentDescription = "Paste from clipboard")
                                 }
-                                if(productLink.isBlank()){
-                                    IconButton(onClick = clipboardPaste) {
-                                        Icon(Icons.Default.ContentPaste, contentDescription = "Paste from clipboard")
-                                    }
-                                }else{
-                                    IconButton(onClick = clearProductLink) {
-                                        Icon(Icons.Default.Clear, contentDescription = "Clear product link")
-                                    }
+                            } else {
+                                IconButton(onClick = clearProductLink) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear product link")
                                 }
                             }
-                        },
-                        keyboardOptions = KeyboardOptions(
-                            imeAction = ImeAction.Done,
-                            keyboardType = KeyboardType.Uri
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = { onGenerateLink() }
-                        )
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Done,
+                        keyboardType = KeyboardType.Uri
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { onGenerateLink() }
                     )
-                    if (isError) {
-                        Text(
-                            text = "Please enter a valid URL.",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 16.dp, top = 4.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = onGenerateLink,
-                        enabled = !isError && productLink.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(text = "Generate Link")
-                    }
+                )
+                if (isError) {
+                    Text(
+                        text = "Please enter a valid URL.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, top = 4.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onGenerateLink,
+                    enabled = !isError && productLink.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(text = "Generate Link")
                 }
             }
+        }
 
+        // --- SCROLLABLE LIST SECTION ---
+        // This LazyColumn will now take up the remaining space and scroll independently.
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f), // This is the key to making it fill the rest of the screen
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+        ) {
             if (recentLinks.isEmpty()) {
                 item {
                     Text(
                         text = "Recent Links",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
                     )
-
                     HorizontalDivider()
-
                     Text(
                         text = "No links generated yet.",
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Normal,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp)
                     )
                 }
             }
@@ -222,10 +256,10 @@ fun GenerateLink(
                     )
                 }
 
-                itemsIndexed(recentLinks) { index,link ->
+                items(recentLinks) { link ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        onClick = { listLinkClick(link) }
+                        onClick = { selectedLinkForAction = link }
                     ) {
                         ListItem(
                             headlineContent = {
@@ -237,32 +271,99 @@ fun GenerateLink(
                             },
                             trailingContent = {
                                 Icon(
-                                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    contentDescription = "Open Link"
+                                    Icons.Default.MoreVert,
+                                    contentDescription = "Options"
                                 )
                             },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                         )
                     }
-                    if (index >= recentLinks.size - 3 && hasMoreLinks) {
-                        LaunchedEffect(key1 = index) {
-                            onLoadMore()
-                        }
-                    }
-                }
-                if (isListLoading && recentLinks.isNotEmpty() && !isLoading) {
-                    item {
-                        Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    }
                 }
             }
         }
+    }
+
 
     if (isLoading) {
         LoadingOverlay(modifier = Modifier.fillMaxSize())
     }
+}
+
+
+@Composable
+fun LinkActionDialog(
+    link: String,
+    onDismiss: () -> Unit,
+    onCopy: (String) -> Unit,
+    onShare: (String) -> Unit,
+    onOpen: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Link Options") },
+        // --- THIS IS THE MAIN CHANGE ---
+        // We now use the `text` parameter to list our actions.
+        text = {
+            Column {
+                // Display the link itself
+                Text(
+                    text = link,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // Action Buttons as a list
+                TextButton(
+                    onClick = {
+                        onCopy(link)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(imageVector = Icons.Filled.ContentCopy, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Copy Link")
+                    Spacer(Modifier.weight(1f)) // Pushes text to the left
+                }
+
+                TextButton(
+                    onClick = {
+                        onShare(link)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(imageVector = Icons.Filled.Share, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Share Link")
+                    Spacer(Modifier.weight(1f))
+                }
+
+                TextButton(
+                    onClick = {
+                        onOpen(link)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) // A better icon for "Open"
+                    Spacer(Modifier.width(8.dp))
+                    Text("Open in Browser")
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+        },
+        // We remove the confirm button as actions are in the text body
+        confirmButton = {},
+        // We add a proper dismiss button
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 
@@ -301,7 +402,6 @@ fun SupportedStoresRow(stores: List<SupportedStore>) {
 }
 @Composable
 fun GenerateLinkDialog(apiResponse: ApiResponse, onDismissDialog: () -> Unit, context: Context) {
-    Log.d("ApiResponse", "GenerateLinkDialog: $apiResponse")
     AlertDialog(
         onDismissRequest = onDismissDialog,
         title = { Text(if (apiResponse.success == 1) "Link Generated!" else "Error") },

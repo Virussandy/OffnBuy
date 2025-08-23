@@ -8,6 +8,7 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.ozonic.offnbuy.model.DealItem
 import com.ozonic.offnbuy.repository.DealsRepository
 import com.ozonic.offnbuy.util.FirebaseInitialization
+import com.ozonic.offnbuy.util.NetworkConnectivityObserver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +18,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class DealsViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = DealsRepository((application as FirebaseInitialization).database.dealDao())
+
+    private val repository = DealsRepository(
+        (application as FirebaseInitialization).database.dealDao(),
+        NetworkConnectivityObserver(application)
+    )
 
     val deals: StateFlow<List<DealItem>> = repository.getDealsStream()
         .stateIn(

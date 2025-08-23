@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -153,10 +155,11 @@ fun MainScreen(
     LaunchedEffect(navBackStackEntry) {
         showBottomBar = when (currentRoute) {
             NavigationItem.ContentScreen.route -> false
-            NavigationItem.Search.route -> false
+//            NavigationItem.Search.route -> false
             NavigationItem.DealDetailScreen.route -> false
             NavigationItem.AuthScreen.route -> false
             NavigationItem.EditProfileScreen.route -> false
+//            NavigationItem.Links.route -> false
             else -> true
         }
 
@@ -168,51 +171,66 @@ fun MainScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+//                        Text(
+//                            "Off",
+//                            textAlign = TextAlign.Center,
+//                            style = MaterialTheme.typography.titleLarge,
+//                            fontWeight = FontWeight.Bold,
+////                            color = MaterialTheme.colorScheme.primary
+//                            color = Color(0xFFD60000)
+//                        )
+//                        Text(
+//                            "n",
+//                            textAlign = TextAlign.Center,
+//                            style = MaterialTheme.typography.titleLarge,
+//                            fontWeight = FontWeight.Bold,
+////                            color = MaterialTheme.colorScheme.inversePrimary
+//                            color = Color(0xFF7C7C84)
+//                        )
+//                        Text(
+//                            "Buy",
+//                            textAlign = TextAlign.Center,
+//                            style = MaterialTheme.typography.titleLarge,
+//                            fontWeight = FontWeight.Bold,
+////                            color = MaterialTheme.colorScheme.primary
+//                            color = Color(0xFFD60000)
+//                        )
                         Text(
-                            "Off",
-                            textAlign = TextAlign.Center,
+                            "OffnBuy",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            "n",
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.inversePrimary
-                        )
-                        Text(
-                            "Buy",
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
                         )
                     }
                 },
                 navigationIcon = {
-                    Icon(
-                        modifier = Modifier.padding(
-                            start = 8.dp,
-                            end = 4.dp,
-                            top = 16.dp,
-                            bottom = 16.dp
-                        ),
-                        painter = painterResource(R.drawable.icon),
-                        contentDescription = "Icon",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+//                    Icon(
+//                        modifier = Modifier.padding(
+//                            start = 8.dp,
+//                            end = 4.dp,
+//                            top = 16.dp,
+//                            bottom = 16.dp
+//                        ),
+//                        painter = painterResource(R.drawable.icon),
+//                        contentDescription = "Icon",
+////                        tint = MaterialTheme.colorScheme.primary
+//                    )
+                    Image(painter = painterResource(R.drawable.icon), contentDescription = null, modifier = Modifier.padding(
+                        start = 8.dp,
+                        end = 4.dp,
+                        top = 16.dp,
+                        bottom = 16.dp
+                    ),)
                 },
-                actions = {
-                    IconButton(onClick = { navController.navigate(NavigationItem.Search.route) }) {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                },
+//                actions = {
+//                    IconButton(onClick = { navController.navigate(NavigationItem.Search.route) }) {
+//                        Icon(
+//                            Icons.Default.Search,
+//                            contentDescription = "Search",
+//                            tint = MaterialTheme.colorScheme.primary
+//                        )
+//                    }
+//                },
                 floatingActionButton = {
                     if (newAvailable) {
                         ExtendedFloatingActionButton(
@@ -234,8 +252,18 @@ fun MainScreen(
                         "Links",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 },
+//                navigationIcon = {
+//                    IconButton(onClick = { navController.popBackStack() }) {
+//                        Icon(
+//                            Icons.AutoMirrored.Filled.ArrowBack,
+//                            contentDescription = "Back",
+//                            tint = MaterialTheme.colorScheme.primary
+//                        )
+//                    }
+//                }
             )
 
             NavigationItem.Notifications.route -> TopBarState(
@@ -244,6 +272,7 @@ fun MainScreen(
                         "Notifications",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 },
                 actions = {
@@ -279,6 +308,7 @@ fun MainScreen(
                         "Profile",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 },
             )
@@ -301,9 +331,29 @@ fun MainScreen(
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
-                },
+                },)
 
-                )
+            NavigationItem.Search.route -> TopBarState(
+                title = {
+                    Text(
+                        text = "Search",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 24.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                },
+//                navigationIcon = {
+//                    IconButton(onClick = { navController.popBackStack() }) {
+//                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back",tint = MaterialTheme.colorScheme.primary)
+//                    }
+//                },
+                scrollBehavior = scrollBehavior,
+//                colors = TopAppBarDefaults.topAppBarColors(
+//                    containerColor = Color.Transparent,
+//                    scrolledContainerColor = Color.Transparent
+//                )
+            )
 
             else -> TopBarState(isVisible = false)
         }
@@ -341,7 +391,12 @@ fun MainScreen(
                         navigationIcon = { topBarState.navigationIcon?.invoke() },
                         actions = { topBarState.actions?.invoke() },
                         windowInsets = WindowInsets.displayCutout,
-                        scrollBehavior = topBarState.scrollBehavior
+                        scrollBehavior = topBarState.scrollBehavior,
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            scrolledContainerColor = MaterialTheme.colorScheme.background, // Set this to the same color
+                        ),
+
                     )
                 }
             },
@@ -360,7 +415,6 @@ fun MainScreen(
                     }
                 }
             },
-            // contentWindowInsets = ScaffoldDefaults.contentWindowInsets
         ) { paddingValues ->
             AppNavigation(
                 navHostController = navController,

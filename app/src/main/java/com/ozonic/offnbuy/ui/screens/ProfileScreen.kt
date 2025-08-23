@@ -1,10 +1,8 @@
 package com.ozonic.offnbuy.ui.screens
 
-import android.content.Context
-import android.content.Intent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -41,11 +39,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,16 +53,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.ozonic.offnbuy.R
 import com.ozonic.offnbuy.model.ContentType
-import com.ozonic.offnbuy.model.User
+import com.ozonic.offnbuy.model.UserProfile
 import com.ozonic.offnbuy.viewmodel.AuthState
-import com.ozonic.offnbuy.viewmodel.AuthViewModel
+import com.ozonic.offnbuy.viewmodel.ProfileViewModel
 
 data class SettingsState(
     val isDarkMode: Boolean,
@@ -76,18 +73,21 @@ data class SettingsState(
 @Composable
 fun ProfileScreen(
     settingsState: SettingsState,
+    profileViewModel: ProfileViewModel,
     onToggleDarkMode: () -> Unit,
     onToggleDynamicColor: () -> Unit,
     onContentScreenClick: (String) -> Unit,
     onAppShare: () -> Unit,
     onNotificationSettingsClick: () -> Unit,
     onLoginClick: () -> Unit,
+    onLinkGenerateClick: () -> Unit,
     onEditProfileClick: () -> Unit,
     onLogout: () -> Unit,
 ) {
     val scrollState = rememberScrollState()
     var showLogoutDialog by remember { mutableStateOf(false) }
 
+    val userProfile by profileViewModel.userProfile.collectAsState()
     val isAnonymousUser = (settingsState.authState as? AuthState.Authenticated)?.user?.isAnonymous ?: true
 
     if (showLogoutDialog) {
@@ -111,13 +111,12 @@ fun ProfileScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Spacer(modifier = Modifier.height(1.dp))
-
-        if (isAnonymousUser) {
-            UnauthenticatedHeader(onLoginClick)
+        if (userProfile != null && !isAnonymousUser) {
+            AuthenticatedHeader(userProfile, onEditProfileClick)
         } else {
-            val user = settingsState.authState.user
-            AuthenticatedHeader(user, onEditProfileClick)
+            UnauthenticatedHeader(onLoginClick)
         }
+
 
         SettingsSection(
             settingsState = settingsState,
@@ -125,6 +124,7 @@ fun ProfileScreen(
             onToggleDynamicColor = onToggleDynamicColor,
             onEditProfileClick = onEditProfileClick,
             onNotificationSettingsClick = onNotificationSettingsClick,
+//            onLinkGenerateClick = onLinkGenerateClick,
             isAnonymousUser = isAnonymousUser
         )
 
@@ -140,7 +140,7 @@ fun ProfileScreen(
 }
 
 @Composable
-fun AuthenticatedHeader(user: User, onEditProfileClick: () -> Unit) {
+fun AuthenticatedHeader(user: UserProfile?, onEditProfileClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -153,7 +153,7 @@ fun AuthenticatedHeader(user: User, onEditProfileClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             AsyncImage(
-                model = user.photoUrl,
+                model = user?.profilePic,
                 contentDescription = "Profile Picture",
                 placeholder = painterResource(id = R.drawable.ic_profile),
                 error = painterResource(id = R.drawable.ic_profile),
@@ -164,14 +164,14 @@ fun AuthenticatedHeader(user: User, onEditProfileClick: () -> Unit) {
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Hi, ${user.displayName ?: "User"}",
+                    text = user?.name ?: "User",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = user.email ?: user.phoneNumber ?: "Welcome back",
+                    text = user?.email ?: user?.phone ?: "Welcome back",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+//                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -191,12 +191,13 @@ fun UnauthenticatedHeader(onLoginClick: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(
-                painter = painterResource(R.drawable.icon),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(40.dp)
-            )
+//            Icon(
+//                painter = painterResource(R.drawable.app_logo),
+//                contentDescription = null,
+////                tint = MaterialTheme.colorScheme.primary,
+//                modifier = Modifier.size(40.dp)
+//            )
+            Image(painter = painterResource(R.drawable.icon), contentDescription = null, modifier = Modifier.size(40.dp))
             Text(
                 "Welcome to OffnBuy",
                 style = MaterialTheme.typography.titleMedium,
@@ -225,6 +226,7 @@ private fun SettingsSection(
     onToggleDynamicColor: () -> Unit,
     onEditProfileClick: () -> Unit,
     onNotificationSettingsClick: () -> Unit,
+//    onLinkGenerateClick: () -> Unit,
     isAnonymousUser: Boolean
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -257,6 +259,12 @@ private fun SettingsSection(
                 onClick = onEditProfileClick
             )
         }
+//        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+//        ProfileOption(
+//            text = "Generate Link",
+//            icon = Icons.Filled.Link,
+//            onClick = onLinkGenerateClick,
+//        )
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         NotificationProfileOption(
             text = "Notification Settings",

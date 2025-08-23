@@ -18,9 +18,16 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ozonic.offnbuy.data.AppDatabase
+import com.ozonic.offnbuy.repository.NotificationsRepository
+import com.ozonic.offnbuy.repository.UserDataRepository
 import com.ozonic.offnbuy.ui.screens.MainScreen
 import com.ozonic.offnbuy.util.InAppUpdateManager
+import com.ozonic.offnbuy.util.NetworkConnectivityObserver
+import com.ozonic.offnbuy.util.NotificationSyncManager
+import com.ozonic.offnbuy.util.SharedPrefManager
 import com.ozonic.offnbuy.util.UpdateState
+import com.ozonic.offnbuy.util.UserDataManager
 import com.ozonic.offnbuy.viewmodel.AuthViewModel
 import com.ozonic.offnbuy.viewmodel.MainViewModel
 import com.ozonic.offnbuy.viewmodel.SettingsViewModel
@@ -29,6 +36,7 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var userDataManager: UserDataManager
     private val dealIdState = mutableStateOf<String?>(null)
     private lateinit var inAppUpdateManager: InAppUpdateManager
 
@@ -41,12 +49,41 @@ class MainActivity : ComponentActivity() {
         lifecycle.addObserver(inAppUpdateManager)
 
         setContent {
+
             // The AuthViewModel is now created here, within the composable scope
             val authViewModel: AuthViewModel = viewModel()
             val settingsViewModel: SettingsViewModel = viewModel(
                 factory = SettingsViewModelFactory(application, authViewModel)
             )
             val mainViewModel: MainViewModel = viewModel()
+            val userDataRepository = remember {
+                val db = AppDatabase.getDatabase(application)
+                UserDataRepository(db.favoriteDealDao(), db.generatedLinkDao(), db.userProfileDao())
+            }
+
+            val notificationsRepository = remember {
+                val db = AppDatabase.getDatabase(application)
+                val sharedPrefs = SharedPrefManager(application)
+                NotificationsRepository(
+                    application = application,
+                    notifiedDealDao = db.notifiedDealDao(),
+                    connectivityObserver = NetworkConnectivityObserver(application),
+                    sharedPrefManager = sharedPrefs
+                )
+            }
+            val notificationSyncManager = remember { NotificationSyncManager(notificationsRepository) }
+            // Start both sync managers when the app launches
+            LaunchedEffect(key1 = Unit) {
+                userDataManager.start()
+                notificationSyncManager.start() // Start the notification sync
+            }
+
+            LaunchedEffect(key1 = Unit) {
+                userDataManager.start()
+            }
+            userDataManager = remember {
+                UserDataManager(lifecycleScope, authViewModel, userDataRepository)
+            }
 
             val updateState by inAppUpdateManager.updateState.collectAsState()
             val snackbarHostState = remember { SnackbarHostState() }

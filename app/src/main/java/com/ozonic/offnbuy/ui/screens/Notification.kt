@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,10 +45,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
 import com.ozonic.offnbuy.model.NotifiedDeal
+import com.ozonic.offnbuy.model.NotifiedDealItem
 import com.ozonic.offnbuy.util.getTimeAgo
 import com.ozonic.offnbuy.viewmodel.NotificationViewModel
 import com.ozonic.offnbuy.viewmodel.SettingsViewModel
-import io.ktor.http.ContentType
 import kotlinx.coroutines.delay
 
 fun Context.findActivity(): Activity = when (this) {
@@ -63,16 +62,16 @@ fun NotificationScreen(
     viewModel: NotificationViewModel = viewModel(),
     settingsViewModel: SettingsViewModel,
     navController: NavController,
-    onLoadMore: () -> Unit,
-    hasMore: Boolean,
-    isLoading: Boolean
+//    onLoadMore: () -> Unit,
+//    hasMore: Boolean,
+//    isLoading: Boolean
 ) {
     val notifications by viewModel.notifiedDeals.collectAsState()
-    val isFirstTime by viewModel.isFirstTime.collectAsState()
+//    val isFirstTime by viewModel.isFirstTime.collectAsState()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    if(isFirstTime){
+//    if(isFirstTime){
         LaunchedEffect(Unit) {
             delay(1000L)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -83,9 +82,9 @@ fun NotificationScreen(
                 )
             }
         }
-    }
+//    }
 
-    if(isFirstTime){
+//    if(isFirstTime){
         DisposableEffect(lifecycleOwner) {
             val observer = LifecycleEventObserver { _, event ->
                 // When the app is resumed (e.g., after returning from the permission dialog)
@@ -101,7 +100,7 @@ fun NotificationScreen(
                 lifecycleOwner.lifecycle.removeObserver(observer)
             }
         }
-    }
+//    }
 
 
     if (notifications.isEmpty()) {
@@ -125,19 +124,19 @@ fun NotificationScreen(
                         navController.navigate("dealDetail/${notification.deal.deal_id}")
                     }
                 )
-                if (index >= notifications.size - 3 && hasMore && !isLoading) {
-                    LaunchedEffect(key1 = index) {
-                        onLoadMore()
-                    }
-                }
+//                if (index >= notifications.size - 3 && hasMore && !isLoading) {
+//                    LaunchedEffect(key1 = index) {
+//                        onLoadMore()
+//                    }
+//                }
             }
-            if (isLoading && notifications.isNotEmpty()) {
-                item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                }
-            }
+//            if (isLoading && notifications.isNotEmpty()) {
+//                item {
+//                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+//                        CircularProgressIndicator()
+//                    }
+//                }
+//            }
         }
     }
 }

@@ -1,139 +1,151 @@
 package com.ozonic.offnbuy.repository
 
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.toObject
 import com.ozonic.offnbuy.data.FavoriteDealDao
 import com.ozonic.offnbuy.data.GeneratedLinkDao
+import com.ozonic.offnbuy.data.UserProfileDao
 import com.ozonic.offnbuy.model.FavoriteDeal
 import com.ozonic.offnbuy.model.GeneratedLink
+import com.ozonic.offnbuy.model.UserProfile
 import com.ozonic.offnbuy.util.FirestoreCollections
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class UserDataRepository(
     private val favoriteDealDao: FavoriteDealDao,
-    private val generatedLinkDao: GeneratedLinkDao
+    private val generatedLinkDao: GeneratedLinkDao,
+    private val userProfileDao: UserProfileDao
 ) {
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
+    private val scope = CoroutineScope(Dispatchers.IO)
 
-    private val userId: String?
-        get() = auth.currentUser?.uid
-
-    // --- FAVORITE DEALS ---
-
-    fun getFavorites() = favoriteDealDao.getFavoritesForUser(userId ?: "")
-
-    suspend fun addFavorite(dealId: String) {
-        val uid = userId ?: return
-        val favorite = FavoriteDeal(deal_id = dealId, userId = uid, addedAt = java.util.Date())
-
-        // 1. Write to local cache immediately for instant UI update
-        favoriteDealDao.insert(favorite)
-
-        // 2. Write to Firestore for cloud backup, using the server's timestamp
-        val firestoreFavorite = mapOf(
-            "deal_id" to dealId,
-            "userId" to uid,
-            "addedAt" to FieldValue.serverTimestamp() // Use server time
-        )
-        db.collection(FirestoreCollections.USERS).document(uid).collection(FirestoreCollections.FAVORITE_DEALS).document(dealId)
-            .set(firestoreFavorite).await()
+    fun getCurrentUserId(): String? {
+        return auth.currentUser?.uid
     }
 
-    suspend fun removeFavorite(dealId: String) {
-        val uid = userId ?: return
-        val favorite = FavoriteDeal(deal_id = dealId, userId = uid)
+    // --- USER PROFILE ---
+    fun getUserProfile(userId: String) = userProfileDao.getProfile(userId)
 
-        // 1. Remove from local cache immediately
+    fun listenForUserProfileChanges(userId: String): ListenerRegistration {
+        val docRef = db.collection(FirestoreCollections.USERS).document(userId)
+        return docRef.addSnapshotListener { snapshot, e ->
+            if (e != null) {
+                Log.w("UserDataRepo", "Profile listen failed.", e)
+                return@addSnapshotListener
+            }
+
+            if (snapshot != null && snapshot.exists()) {
+                val profile = snapshot.toObject<UserProfile>()
+                if (profile != null) {
+                    scope.launch {
+                        // Add the UID from the document ID, as it might not be a field in the document
+                        userProfileDao.upsert(profile.copy(uid = snapshot.id))
+                    }
+                }
+            } else {
+                Log.d("UserDataRepo", "Current data: null")
+            }
+        }
+    }
+
+    // --- FAVORITES ---
+    // ... (existing favorite functions are correct) ...
+    fun getFavorites(userId: String) = favoriteDealDao.getFavoritesForUser(userId)
+
+    suspend fun addFavorite(userId: String, dealId: String) {
+        val favorite = FavoriteDeal(deal_id = dealId, userId = userId)
+        favoriteDealDao.insert(favorite)
+        db.collection(FirestoreCollections.USERS).document(userId).collection(FirestoreCollections.FAVORITE_DEALS).document(dealId)
+            .set(favorite).await()
+    }
+
+    suspend fun removeFavorite(userId: String, dealId: String) {
+        val favorite = FavoriteDeal(deal_id = dealId, userId = userId)
         favoriteDealDao.delete(favorite)
-
-        // 2. Remove from Firestore
-        db.collection(FirestoreCollections.USERS).document(uid).collection(FirestoreCollections.FAVORITE_DEALS).document(dealId)
+        db.collection(FirestoreCollections.USERS).document(userId).collection(FirestoreCollections.FAVORITE_DEALS).document(dealId)
             .delete().await()
     }
 
-    /**
-     * Synchronizes favorites from Firestore to the local Room database.
-     * This is called when a user logs in.
-     */
-    suspend fun syncFavorites() {
-        val uid = userId ?: return
-        val snapshot = db.collection(FirestoreCollections.USERS).document(uid).collection(
-            FirestoreCollections.FAVORITE_DEALS).get().await()
-        val firestoreFavorites = snapshot.documents.mapNotNull { it.toObject<FavoriteDeal>() }
+    fun listenForFavoriteChanges(userId: String): ListenerRegistration {
+        val query = db.collection(FirestoreCollections.USERS).document(userId)
+            .collection(FirestoreCollections.FAVORITE_DEALS)
 
-        // Clear local cache and insert fresh data from the cloud
-        favoriteDealDao.clearFavoritesForUser(uid)
-        firestoreFavorites.forEach { favoriteDealDao.insert(it) }
+        return query.addSnapshotListener { snapshot, e ->
+            if (e != null) {
+                Log.w("UserDataRepo", "Favorites listen failed.", e)
+                return@addSnapshotListener
+            }
+            if (snapshot == null) return@addSnapshotListener
+
+            for (docChange in snapshot.documentChanges) {
+                scope.launch {
+                    val favorite = docChange.document.toObject<FavoriteDeal>()
+                    when (docChange.type) {
+                        DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> favoriteDealDao.insert(favorite)
+                        DocumentChange.Type.REMOVED -> favoriteDealDao.delete(favorite)
+                    }
+                }
+            }
+        }
     }
-
 
     // --- GENERATED LINKS ---
+    fun getGeneratedLinks(userId: String) = generatedLinkDao.getRecentLinksForUser(userId)
 
-    fun getGeneratedLinks() = generatedLinkDao.getRecentLinksForUser(userId ?: "")
-
-    suspend fun addGeneratedLink(url: String) {
-        val uid = userId ?: return
-
-        val querySnapshot = db.collection(FirestoreCollections.USERS).document(uid)
-            .collection(FirestoreCollections.GENERATED_LINKS)
-            .whereEqualTo("url", url)
-            .limit(1) // We only need to know if at least one exists.
-            .get()
-            .await()
-
-        if (!querySnapshot.isEmpty) {
-            return // Exit the function to prevent saving a duplicate.
-        }
-
-        val link = GeneratedLink(url = url, userId = uid, createdAt = java.util.Date())
-
-        // 1. Write to local cache
+    suspend fun addGeneratedLink(userId: String, url: String) {
+        val link = GeneratedLink(userId = userId, url = url)
         generatedLinkDao.insert(link)
-
-        // 2. Write to Firestore
-        val firestoreLink = mapOf(
-            "url" to url,
-            "userId" to uid,
-            "createdAt" to FieldValue.serverTimestamp() // Use server time
-        )
-        // Using url as the document ID for simplicity and to prevent duplicates
-        db.collection(FirestoreCollections.USERS).document(uid).collection(FirestoreCollections.GENERATED_LINKS).document()
-            .set(firestoreLink).await()
+        db.collection(FirestoreCollections.USERS).document(userId).collection(FirestoreCollections.GENERATED_LINKS)
+            .add(link).await()
     }
 
-    // Add this new function to the class
-    suspend fun getGeneratedLinksPaginated(page: Int, pageSize: Int = 10): List<GeneratedLink> {
-        val uid = userId ?: return emptyList()
+    // ++ RESTORE THIS PAGINATION FUNCTION ++
+    suspend fun getGeneratedLinksPaginated(userId: String, page: Int, pageSize: Int): List<GeneratedLink> {
         val offset = page * pageSize
-        return generatedLinkDao.getLinksPaginated(uid, pageSize, offset)
+        return generatedLinkDao.getLinksPaginated(userId, pageSize, offset)
     }
 
-    suspend fun syncGeneratedLinks() {
-        val uid = userId ?: return
-        val snapshot = db.collection(FirestoreCollections.USERS).document(uid).collection(FirestoreCollections.GENERATED_LINKS).get().await()
-        val firestoreLinks = snapshot.documents.mapNotNull { it.toObject<GeneratedLink>() }
+    fun listenForGeneratedLinkChanges(userId: String): ListenerRegistration {
+        val query = db.collection(FirestoreCollections.USERS).document(userId)
+            .collection(FirestoreCollections.GENERATED_LINKS)
 
-        generatedLinkDao.clearLinksForUser(uid)
-        firestoreLinks.forEach { generatedLinkDao.insert(it) }
+        return query.addSnapshotListener { snapshot, e ->
+            if (e != null) {
+                Log.w("UserDataRepo", "Links listen failed.", e)
+                return@addSnapshotListener
+            }
+            if (snapshot == null) return@addSnapshotListener
+
+            for (docChange in snapshot.documentChanges) {
+                scope.launch {
+                    val link = docChange.document.toObject<GeneratedLink>()
+                    when (docChange.type) {
+                        DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> generatedLinkDao.insert(link)
+                        DocumentChange.Type.REMOVED -> generatedLinkDao.delete(link)
+                    }
+                }
+            }
+        }
     }
 
-
-    // --- DATA CLEARING ---
-
-    /**
-     * Clears all user-specific data from the local database for a specific user ID.
-     * This is crucial to call on logout or when switching users.
-     */
-    suspend fun clearAllLocalDataForUser(userId: String) { // <-- MODIFIED
-        favoriteDealDao.clearFavoritesForUser(userId)
-        generatedLinkDao.clearLinksForUser(userId)
+    // --- MIGRATION & DATA CLEARING ---
+    suspend fun migrateLocalUserData(fromUid: String, toUid: String) {
+        favoriteDealDao.updateUserId(fromUid, toUid)
+        generatedLinkDao.updateUserId(fromUid, toUid)
+        userProfileDao.updateUserId(fromUid, toUid)
     }
 
-    suspend fun clearAllLocalDataForUser() {
-        val uid = userId ?: return
-        clearAllLocalDataForUser(uid)
+    suspend fun clearAllLocalUserData() {
+        favoriteDealDao.clearAll()
+        generatedLinkDao.clearAll()
+        userProfileDao.clearAll()
     }
 }

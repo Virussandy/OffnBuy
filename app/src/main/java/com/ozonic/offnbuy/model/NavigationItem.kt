@@ -67,7 +67,7 @@ sealed class NavigationItem(
     )
 
     companion object {
-        fun values() = listOf(Home, Links, Notifications, Profile)
+        fun values() = listOf(Home,Search, Links, Notifications, Profile)
     }
 }
 

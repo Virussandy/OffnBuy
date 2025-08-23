@@ -1,7 +1,6 @@
 package com.ozonic.offnbuy.ui.screens
 
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,7 +36,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
@@ -157,6 +155,12 @@ fun LoginOptionsScreen(
     ) {
         Spacer(Modifier.weight(0.2f))
 
+//        Icon(
+//            painter = painterResource(id = R.drawable.icon),
+//            contentDescription = "App Icon",
+//            tint = MaterialTheme.colorScheme.primary,
+//            modifier = Modifier.size(64.dp)
+//        )
         Icon(
             painter = painterResource(id = R.drawable.icon),
             contentDescription = "App Icon",
@@ -304,7 +308,7 @@ fun OtpInputField(
 
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         for (i in 0 until otpCount) {
             OutlinedTextField(
@@ -313,9 +317,7 @@ fun OtpInputField(
                     .focusRequester(focusRequesters[i])
                     .onKeyEvent { event ->
                         if (event.key == Key.Backspace && otpText.getOrNull(i) == null) {
-                            if (i > 0) {
-                                focusRequesters[i - 1].requestFocus()
-                            }
+                            if (i > 0) focusRequesters[i - 1].requestFocus()
                             return@onKeyEvent true
                         }
                         false
@@ -324,9 +326,13 @@ fun OtpInputField(
                 onValueChange = { value ->
                     if (value.length <= 1) {
                         val newChar = value.getOrNull(0)?.toString() ?: ""
-                        val newOtp = otpText.take(i) + newChar + otpText.drop(i + 1)
-                        val isComplete = newOtp.length == otpCount
-                        onOtpTextChange(newOtp, isComplete)
+                        val paddedOtp = otpText.padEnd(otpCount, ' ')
+                        val newOtp = paddedOtp.take(i) + newChar + paddedOtp.drop(i + 1)
+
+                        val isComplete = newOtp.none { it == ' ' } // ✅ all filled
+
+                        onOtpTextChange(newOtp.trimEnd(), isComplete)
+
                         if (newChar.isNotEmpty() && i < otpCount - 1) {
                             focusRequesters[i + 1].requestFocus()
                         }
@@ -336,16 +342,25 @@ fun OtpInputField(
                 textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.NumberPassword,
-                    imeAction = if (i == otpCount - 1) ImeAction.Done else ImeAction.Next
+                    imeAction = ImeAction.Next // ✅ force Next always
                 ),
                 keyboardActions = KeyboardActions(
                     onNext = { if (i < otpCount - 1) focusRequesters[i + 1].requestFocus() },
-                    onDone = { /* Handled by onOtpTextChange */ }
+                    onDone = {
+                        val paddedOtp = otpText.padEnd(otpCount, ' ')
+                        val isComplete = paddedOtp.none { it == ' ' }
+                        if (isComplete) {
+                            onOtpTextChange(paddedOtp.trimEnd(), true)
+                        }
+                        // else: ignore, don’t auto-submit
+                    }
                 )
             )
         }
     }
 }
+
+
 
 
 @Composable

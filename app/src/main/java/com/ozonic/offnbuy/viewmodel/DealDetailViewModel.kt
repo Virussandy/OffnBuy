@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.ozonic.offnbuy.data.AppDatabase
 import com.ozonic.offnbuy.model.DealItem
 import com.ozonic.offnbuy.repository.DealsRepository
+import com.ozonic.offnbuy.util.NetworkConnectivityObserver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,7 +24,9 @@ class DealDetailViewModel(
 ) : ViewModel() {
 
     // The repository will handle fetching from local DB or Firestore
-    private val dealsRepository = DealsRepository(AppDatabase.getDatabase(application).dealDao())
+    private val dealsRepository = DealsRepository(AppDatabase.getDatabase(application).dealDao(),
+        NetworkConnectivityObserver(application)
+    )
 
     private val _uiState = MutableStateFlow<DealDetailUiState>(DealDetailUiState.Loading)
     val uiState: StateFlow<DealDetailUiState> = _uiState.asStateFlow()

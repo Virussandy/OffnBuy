@@ -7,13 +7,15 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.ozonic.offnbuy.data.DealDao
 import com.ozonic.offnbuy.model.DealItem
+import com.ozonic.offnbuy.util.NetworkConnectivityObserver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
 
-class DealsRepository(val dealDao: DealDao) {
+class DealsRepository(val dealDao: DealDao, private val connectivityObserver: NetworkConnectivityObserver) {
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
     private val ioDispatcher = Dispatchers.IO
 
@@ -22,6 +24,11 @@ class DealsRepository(val dealDao: DealDao) {
     }
 
     suspend fun syncDeals(lastVisible: DocumentSnapshot?): DocumentSnapshot? = withContext(ioDispatcher){
+
+        if (!connectivityObserver.observe().first()) {
+            return@withContext null // Not connected, do not proceed
+        }
+
         var query = db.collection("deals")
             .orderBy("posted_on", Query.Direction.DESCENDING)
             .limit(20)
@@ -42,10 +49,16 @@ class DealsRepository(val dealDao: DealDao) {
     }
 
     suspend fun getDealFromFirestore(dealId: String): DealItem? {
+        if (!connectivityObserver.observe().first()) {
+            return null // Not connected, do not proceed
+        }
         return db.collection("deals").document(dealId).get().await().toObject(DealItem::class.java)
     }
 
     suspend fun syncNewestDeals() = withContext(ioDispatcher){
+        if (!connectivityObserver.observe().first()) {
+            return@withContext null // Not connected, do not proceed
+        }
         val query = db.collection("deals")
             .orderBy("posted_on", Query.Direction.DESCENDING)
             .limit(20)
@@ -58,10 +71,13 @@ class DealsRepository(val dealDao: DealDao) {
             dealDao.deleteOldestIfExceedsLimit()
         }
     }
-    fun listenForNewDeals(
+    suspend fun listenForNewDeals(
         latestDealTimestamp: String, // consider using Timestamp instead of String (see note below)
         onNewDeal: (DealItem) -> Unit
-    ): ListenerRegistration {
+    ): ListenerRegistration? {
+        if (!connectivityObserver.observe().first()) {
+            return null // Not connected, do not proceed
+        }
         // Run snapshot listener work off the main thread
         val executor = Executors.newSingleThreadExecutor()
         return db.collection("deals")

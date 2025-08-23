@@ -32,6 +32,8 @@ import com.ozonic.offnbuy.viewmodel.DealsViewModel
 import com.ozonic.offnbuy.viewmodel.GenerateLinkViewModel
 import com.ozonic.offnbuy.viewmodel.GenerateLinkViewModelFactory
 import com.ozonic.offnbuy.viewmodel.NotificationViewModel
+import com.ozonic.offnbuy.viewmodel.ProfileViewModel
+import com.ozonic.offnbuy.viewmodel.ProfileViewModelFactory
 import com.ozonic.offnbuy.viewmodel.SearchViewModel
 import com.ozonic.offnbuy.viewmodel.SettingsViewModel
 import java.util.regex.Pattern
@@ -96,28 +98,29 @@ fun AppNavigation(
                 onSearchQueryChange = { it ->
                     searchViewModel.onSearchQueryChange(it)
                 },
-                loadMoreDeals = { searchViewModel.loadMoreDeals() },
-                onBackOperation = {
-                    navHostController.popBackStack()
-                })
+                loadMoreDeals = { searchViewModel.loadMoreDeals() },)
         }
         composable(NavigationItem.Notifications.route) {
-            val isLoading by notificationViewModel.isLoading.collectAsState()
-            val hasMore by notificationViewModel.hasMoreNotifications.collectAsState()
+//            val isLoading by notificationViewModel.isLoading.collectAsState()
+//            val hasMore by notificationViewModel.hasMoreNotifications.collectAsState()
             NotificationScreen(
                 viewModel = notificationViewModel,
                 navController = navHostController,
                 settingsViewModel = settingsViewModel,
-                onLoadMore = { notificationViewModel.loadMoreNotifications() },
-                hasMore = hasMore,
-                isLoading = isLoading
+//                onLoadMore = { notificationViewModel.loadMoreNotifications() },
+//                hasMore = hasMore,
+//                isLoading = isLoading
             )
         }
         composable(NavigationItem.Profile.route) {
+            val profileViewModel: ProfileViewModel = viewModel(
+                factory = ProfileViewModelFactory(application, authViewModel)
+            )
             val settingsState by settingsViewModel.settingsState.collectAsState()
 
             ProfileScreen(
                 settingsState = settingsState,
+                profileViewModel = profileViewModel,
                 onToggleDarkMode = { settingsViewModel.toggleDarkMode() },
                 onToggleDynamicColor = { settingsViewModel.toggleDynamicColor() },
                 onContentScreenClick = { route ->
@@ -127,6 +130,7 @@ fun AppNavigation(
                 onNotificationSettingsClick = { goToNotificationSettings(context) },
                 onLoginClick = { navHostController.navigate(NavigationItem.AuthScreen.route) },
                 onEditProfileClick = { navHostController.navigate(NavigationItem.EditProfileScreen.route) },
+                onLinkGenerateClick = { navHostController.navigate(NavigationItem.Links.route) },
                 onLogout = {
                     authViewModel.logout()
                 }
@@ -186,7 +190,6 @@ fun AppNavigation(
             val generatedLink by generateLinkViewModel.generatedLink.collectAsState()
             val isLoading by generateLinkViewModel.isLoading.collectAsState()
             val supportedStores by generateLinkViewModel.supportedStores.collectAsState()
-            val isListLoading by generateLinkViewModel.isListLoading.collectAsState()
             val isError by generateLinkViewModel.isError.collectAsState()
             val clipboardManager = LocalClipboardManager.current
 
@@ -195,8 +198,6 @@ fun AppNavigation(
                 onProductLinkChange = { it -> generateLinkViewModel.onProductLinkChange(it) },
                 recentLinks = recentLinks,
                 listLinkClick = { it -> goToStore(context = context, dealUrl = it) },
-                onLoadMore = { generateLinkViewModel.loadMoreLinks() },
-                hasMoreLinks = generateLinkViewModel.hasMoreLinks.collectAsState().value,
                 clipboardPaste = {
                     val clipText = clipboardManager.getText()?.text ?: ""
                     val url = extractUrl(clipText)
@@ -210,7 +211,6 @@ fun AppNavigation(
                 onDismissDialog = { generateLinkViewModel.clearGeneratedLink() },
                 isLoading = isLoading,
                 generatedLink = generatedLink,
-                isListLoading = isListLoading,
                 isError = isError,
             )
         }

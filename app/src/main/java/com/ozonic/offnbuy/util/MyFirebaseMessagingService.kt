@@ -3,7 +3,6 @@ package com.ozonic.offnbuy.util
 import android.Manifest
 import android.app.PendingIntent
 import android.content.Intent
-import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -18,14 +17,13 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.d("FCM", "Token: $token")
 
         FirebaseMessaging.getInstance().subscribeToTopic("all")
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    Log.d("FCM", "Successfully subscribed to 'all' topic")
+//                    Log.d("FCM", "Successfully subscribed to 'all' topic")
                 } else {
-                    Log.e("FCM", "Failed to subscribe to topic", task.exception)
+//                    Log.e("FCM", "Failed to subscribe to topic", task.exception)
                 }
             }
     }

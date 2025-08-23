@@ -101,6 +101,7 @@ fun EditProfileScreen(
         is AuthState.Authenticated -> {
             EditProfileContent(
                 user = state.user,
+                profileState = profileState,
                 onUpdateProfilePicture = { imagePickerLauncher.launch("image/*") },
                 onEditName = { showEditNameDialog = true },
                 onEditPhone = { showUpdatePhoneDialog = true },
@@ -192,6 +193,7 @@ fun UpdateEmailDialog(
     @Composable
     fun EditProfileContent(
         user: User,
+        profileState: ProfileState,
         onUpdateProfilePicture: () -> Unit,
         onEditName: () -> Unit,
         onEditPhone: () -> Unit,
@@ -230,24 +232,27 @@ fun UpdateEmailDialog(
                             },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                         )
-                        HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-                        ListItem(
-                            headlineContent = { Text("Email Address") },
-                            supportingContent = {
-                                val emailText = user.email ?: "Not linked"
-                                val status = if (user.isEmailVerified) " (Verified)" else " (Not Verified)"
-                                Text(if (user.email != null) emailText + status else emailText)
-                            },
-                            trailingContent = {
-                                TextButton(onClick = onEditEmail) {
-                                    Text(if (user.email.isNullOrEmpty()) "Add" else "Change")
-                                }
-                            },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                        ) // Correctly closed brace
+//                        HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+//                        ListItem(
+//                            headlineContent = { Text("Email Address") },
+//                            supportingContent = {
+//                                val emailText = user.email ?: "Not linked"
+//                                val status = if (user.isEmailVerified) " (Verified)" else " (Not Verified)"
+//                                Text(if (user.email != null) emailText + status else emailText)
+//                            },
+//                            trailingContent = {
+//                                TextButton(onClick = onEditEmail) {
+//                                    Text(if (user.email.isNullOrEmpty()) "Add" else "Change")
+//                                }
+//                            },
+//                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+//                        ) // Correctly closed brace
                     }
                 }
             }
+        }
+        if(profileState.isLoading) {
+            LoadingOverlay(modifier = Modifier.fillMaxSize())
         }
     }
 
@@ -273,6 +278,7 @@ fun ProfilePicture(photoUrl: Uri?, onUpdate: () -> Unit) {
             Icon(Icons.Default.CameraAlt, contentDescription = "Change profile picture")
         }
     }
+
 }
 
 @Composable

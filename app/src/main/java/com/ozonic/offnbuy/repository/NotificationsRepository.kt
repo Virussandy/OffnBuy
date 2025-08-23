@@ -1,131 +1,114 @@
 package com.ozonic.offnbuy.repository
 
-import android.os.Build
+import android.Manifest
+import android.app.Application
+import android.app.PendingIntent
+import android.content.Intent
 import android.util.Log
-import androidx.annotation.RequiresApi
-import com.google.android.gms.tasks.Task
-import com.google.android.gms.tasks.Tasks
+import androidx.annotation.RequiresPermission
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.google.firebase.database.ChildEventListener
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
-import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.ozonic.offnbuy.MainActivity
+import com.ozonic.offnbuy.R
+import com.ozonic.offnbuy.data.NotifiedDealDao
 import com.ozonic.offnbuy.model.DealItem
 import com.ozonic.offnbuy.model.NotifiedDeal
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
+import com.ozonic.offnbuy.util.NetworkConnectivityObserver
+import com.ozonic.offnbuy.util.SharedPrefManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
-class NotificationsRepository {
+// Inject Application context for showing notifications
+class NotificationsRepository(
+    private val application: Application,
+    private val notifiedDealDao: NotifiedDealDao,
+    private val connectivityObserver: NetworkConnectivityObserver,
+    private val sharedPrefManager: SharedPrefManager
+) {
 
     private val dbRef = FirebaseDatabase.getInstance().getReference("Notifications")
-    private val db = FirebaseFirestore.getInstance()
+    private val firestore = FirebaseFirestore.getInstance()
+    private val scope = CoroutineScope(Dispatchers.IO)
 
-    // In offnbuy/repository/NotificationsRepository.kt
+    fun startListeningForNotifications() {
+        scope.launch {
+            if (!connectivityObserver.observe().first()) {
+                Log.d("NotificationsRepository", "Offline. Skipping listener attachment.")
+                return@launch
+            }
 
-    // This function now handles pagination.
-    suspend fun getNotifications(pageSize: Int = 10, startKey: String? = null): Pair<List<NotifiedDeal>, String?> = suspendCoroutine { continuation ->
-        // Query is ordered by key (which is chronological in Firebase RTDB)
-        var query = dbRef.orderByKey().limitToLast(pageSize)
-
-        // If startKey is provided, we fetch from that point backwards.
-        if (startKey != null) {
-            // We fetch one extra item to exclude it, as endAt is inclusive.
-            query = dbRef.orderByKey().endAt(startKey).limitToLast(pageSize + 1)
-        }
-
-        query.addListenerForSingleValueEvent(object : ValueEventListener {
-            @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val notificationList = mutableListOf<NotifiedDeal>()
-                val fullDealList = mutableListOf<Pair<NotifiedDeal, Task<DocumentSnapshot>>>()
-
-                snapshot.children.forEach { child ->
-                    child.getValue(NotifiedDeal::class.java)?.let { notifiedDeal ->
-                        val dealTask = db.collection("deals").document(notifiedDeal.deal_id).get()
-                        fullDealList.add(Pair(notifiedDeal, dealTask))
-                    }
+            dbRef.addChildEventListener(object : ChildEventListener {
+                override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                    val notifiedDeal = snapshot.getValue(NotifiedDeal::class.java) ?: return
+                    fetchDealDetailsAndUpsert(notifiedDeal, isNew = true)
                 }
 
-                if (fullDealList.isEmpty()) {
-                    continuation.resume(Pair(emptyList(), null))
-                    return
+                override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
+                    val notifiedDeal = snapshot.getValue(NotifiedDeal::class.java) ?: return
+                    fetchDealDetailsAndUpsert(notifiedDeal, isNew = false)
                 }
 
-                // When all Firestore tasks are complete
-                Tasks.whenAll(fullDealList.map { it.second }).addOnSuccessListener {
-                    fullDealList.forEach { (notifiedDeal, task) ->
-                        val deal = task.result?.toObject(DealItem::class.java)
-                        if (deal != null) {
-                            notificationList.add(notifiedDeal.copy(deal = deal))
+                override fun onChildRemoved(snapshot: DataSnapshot) {
+                    val dealId = snapshot.key
+                    if (dealId != null) {
+                        scope.launch {
+                            notifiedDealDao.delete(dealId)
                         }
                     }
+                }
 
-                    // Reverse the list because limitToLast gets them in ascending order.
-                    notificationList.reverse()
+                override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) { /* Not typically used */ }
+                override fun onCancelled(error: DatabaseError) {
+                    Log.e("NotificationsRepository", "Database error: ${error.message}")
+                }
+            })
+        }
+    }
 
-                    val lastKey = snapshot.children.firstOrNull()?.key
-
-                    // If we fetched an extra item for pagination, remove it now.
-                    if (startKey != null && notificationList.isNotEmpty()) {
-                        notificationList.removeFirst()
+    private fun fetchDealDetailsAndUpsert(notifiedDeal: NotifiedDeal, isNew: Boolean) {
+        firestore.collection("deals").document(notifiedDeal.deal_id).get()
+            .addOnSuccessListener { document ->
+                val dealItem = document.toObject(DealItem::class.java)
+                if (dealItem != null) {
+                    val completeDeal = notifiedDeal.copy(deal = dealItem)
+                    scope.launch {
+                        notifiedDealDao.upsert(completeDeal)
+                        // If it's a newly added deal and the user hasn't seen it, show a notification
+                        if (isNew && !sharedPrefManager.getSeenDealsIds().contains(completeDeal.deal_id)) {
+                            showSystemNotification(application, dealItem)
+                        }
                     }
-
-                    continuation.resume(Pair(notificationList, lastKey))
-                }
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                continuation.resume(Pair(emptyList(), null))
-            }
-        })
-    }
-
-    fun listenForNewNotifications(
-        onAdded: (NotifiedDeal) -> Unit,
-        onChanged: (NotifiedDeal) -> Unit,
-        onRemoved: (NotifiedDeal) -> Unit,  // dealId
-        onMoved: (NotifiedDeal) -> Unit
-    ) {
-        dbRef.addChildEventListener(object : ChildEventListener {
-
-            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-                val notifiedDeal = snapshot.getValue(NotifiedDeal::class.java) ?: return
-                fetchDeal(notifiedDeal, onAdded)
-            }
-
-            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
-                val notifiedDeal = snapshot.getValue(NotifiedDeal::class.java) ?: return
-                fetchDeal(notifiedDeal, onChanged)
-            }
-
-            override fun onChildRemoved(snapshot: DataSnapshot) {
-                val notifiedDeal = snapshot.getValue(NotifiedDeal::class.java) ?: return
-                fetchDeal(notifiedDeal, onRemoved)
-            }
-
-            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
-                val notifiedDeal = snapshot.getValue(NotifiedDeal::class.java) ?: return
-                fetchDeal(notifiedDeal, onMoved)
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e("NotificationsRepository", "Database error: ${error.message}")
-            }
-        })
-    }
-
-    private fun fetchDeal(
-        notifiedDeal: NotifiedDeal,
-        callback: (NotifiedDeal) -> Unit
-    ) {
-        db.collection("deals").document(notifiedDeal.deal_id).get()
-            .addOnSuccessListener { snap ->
-                snap.toObject(DealItem::class.java)?.let { deal ->
-                    callback(notifiedDeal.copy(deal = deal))
                 }
             }
     }
 
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
+    private fun showSystemNotification(context: Application, deal: DealItem) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("deal_id", deal.deal_id)
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context, deal.deal_id.hashCode(), intent, // Use a unique request code
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, "good_deals_channel")
+            .setSmallIcon(R.drawable.ic_app_icon)
+            .setContentTitle("🔥 ${deal.title?.take(30)}")
+            .setContentText("Now only ₹${deal.price} (${deal.discount})")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        NotificationManagerCompat.from(context).notify(deal.deal_id.hashCode(), builder.build())
+    }
 }

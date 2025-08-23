@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.annotation.RequiresPermission
-import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -15,180 +14,67 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ozonic.offnbuy.MainActivity
 import com.ozonic.offnbuy.R
+import com.ozonic.offnbuy.data.AppDatabase
 import com.ozonic.offnbuy.model.DealItem
 import com.ozonic.offnbuy.model.NotifiedDeal
+import com.ozonic.offnbuy.model.NotifiedDealItem
 import com.ozonic.offnbuy.repository.NotificationsRepository
 import com.ozonic.offnbuy.util.SharedPrefManager
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 
-class NotificationViewModel(application: Application) : AndroidViewModel(application) {
+    class NotificationViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = NotificationsRepository()
-    private val sharedPrefManager = SharedPrefManager(application)
+        private val notifiedDealDao = AppDatabase.getDatabase(application).notifiedDealDao()
+        private val sharedPrefManager = SharedPrefManager(application)
 
-    private val _notifiedDeals = MutableStateFlow<List<NotifiedDeal>>(emptyList())
-    val notifiedDeals = _notifiedDeals.asStateFlow()
+        // The UI now gets its data from this single, reactive StateFlow.
+        val notifiedDeals: StateFlow<List<NotifiedDeal>>
 
-    private val alreadyNotified = mutableSetOf<String>()
+        // Unseen count is derived from the main list and seen IDs from SharedPreferences.
+        val unseenCount: StateFlow<Int>
 
-    private val _unseenCount = MutableStateFlow(0)
-    val unseenCount: StateFlow<Int> = _unseenCount.asStateFlow()
+        init {
+            // The main flow of all notifications from the local database.
+            val allNotifiedDealsFlow = notifiedDealDao.getAllNotifications()
+            val seenDealIdsFlow = sharedPrefManager.seenDealIdsFlow // A new flow for seen IDs
 
-    private var lastNotificationKey: String? = null
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-    private val _hasMoreNotifications = MutableStateFlow(true)
-    val hasMoreNotifications: StateFlow<Boolean> = _hasMoreNotifications.asStateFlow()
-    private val _isFirstTime = MutableStateFlow(false)
-    val isFirstTime: StateFlow<Boolean> = _isFirstTime.asStateFlow()
-
-
-
-    init {
-        viewModelScope.launch {
-            // --- THIS BLOCK IS PRESERVED ---
-            _isFirstTime.value = sharedPrefManager.isFirstTimeRun()
-            if (_isFirstTime.value) {
-                // First time run: load all initial notifications to mark them as seen.
-                val (initialNotification, _) = repository.getNotifications(100) // Fetch a larger batch on first run
-                val allDealIds = initialNotification.map { it.deal_id }
-                allDealIds.forEach { id ->
-                    sharedPrefManager.addSeenDealId(id)
+            // Combine the two flows. Whenever either the list of notifications or the set of
+            // seen IDs changes, this will re-calculate the list and update the UI.
+            notifiedDeals = combine(allNotifiedDealsFlow, seenDealIdsFlow) { deals, seenIds ->
+                deals.map { deal ->
+                    deal.copy(isSeen = seenIds.contains(deal.deal_id))
                 }
-                val dealsForUi = initialNotification.take(10).map { // But only show the first 10
-                    it.copy(isSeen = true)
-                }
-                _notifiedDeals.value = dealsForUi.sortedByDescending { it.timestamp }
-                _unseenCount.value = 0
-                lastNotificationKey = initialNotification.getOrNull(9)?.deal?.deal_id // Set the key for next page
-                sharedPrefManager.setFirstTimeRun(false)
-            } else {
-                // --- THIS BLOCK IS MODIFIED ---
-                // Not the first time, so just load the first page.
-                loadMoreNotifications()
-            }
-            attachRealtimeListeners()
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+            // The unseen count is now also a reactive flow.
+            unseenCount = notifiedDeals.map { list ->
+                list.count { !it.isSeen }
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
         }
-    }
 
-    fun loadMoreNotifications() {
-        // Prevent multiple loads at the same time
-        if (isLoading.value || !_hasMoreNotifications.value) return
-
-        viewModelScope.launch {
-            _isLoading.value = true
-            // Fetch the next page from the repository
-            val (newDeals, nextKey) = repository.getNotifications(10, lastNotificationKey)
-
-            if (newDeals.isNotEmpty()) {
-                val seenDealIds = sharedPrefManager.getSeenDealsIds()
-                val dealsForUi = newDeals.map { it.copy(isSeen = seenDealIds.contains(it.deal_id)) }
-
-                // Append new deals to the existing list, ensuring no duplicates
-                _notifiedDeals.value = (_notifiedDeals.value + dealsForUi).distinctBy { it.deal_id }.sortedByDescending { it.timestamp }
-                lastNotificationKey = nextKey
-            } else {
-                _hasMoreNotifications.value = false
-            }
-            _isLoading.value = false
-        }
-    }
-
-    private fun attachRealtimeListeners(){
-        repository.listenForNewNotifications(
-            onAdded = { addedDeal ->
-                if (_notifiedDeals.value.any { it.deal.deal_id == addedDeal.deal_id }) return@listenForNewNotifications
-
-                val isSeen = sharedPrefManager.getSeenDealsIds().contains(addedDeal.deal_id)
-
-                _notifiedDeals.update { current ->
-                    (listOf(addedDeal.copy(isSeen = isSeen)) + current).sortedByDescending { it.timestamp }
-                }
-
-                _unseenCount.value = _notifiedDeals.value.count { !it.isSeen }
-
-                if (!isSeen && alreadyNotified.add(addedDeal.deal_id)) {
-                    if (ActivityCompat.checkSelfPermission(
-                            getApplication(),
-                            Manifest.permission.POST_NOTIFICATIONS
-                        ) == PackageManager.PERMISSION_GRANTED
-                    ) {
-                        showSystemNotification(getApplication(), addedDeal.deal)
-                    }
-                }
-            },
-
-            onChanged = { updatedDeal ->
-                _notifiedDeals.update { list ->
-                    list.map {
-                        if (it.deal.deal_id == updatedDeal.deal_id) updatedDeal
-                        else it
-                    }.sortedByDescending { it.timestamp }
-                }
-            },
-
-            onRemoved = { removedDeal ->
-                _notifiedDeals.update { list ->
-                    list.filter { it.deal.deal_id != removedDeal.deal_id }
-                }
-                alreadyNotified.remove(removedDeal.deal_id)
-                _unseenCount.value = _notifiedDeals.value.count { !it.isSeen }
-            },
-
-            onMoved = { movedDeal ->
-                _notifiedDeals.update { list ->
-                    val updatedList = list.filter { it.deal.deal_id != movedDeal.deal_id }
-                    val isSeen = sharedPrefManager.getSeenDealsIds().contains(movedDeal.deal_id)
-                    (listOf(movedDeal.copy(isSeen = isSeen)) + updatedList).sortedByDescending { it.timestamp }
-                }
-            }
-        )
-    }
-
-    private fun loadSeenDealIds(){
-        val seenDealIds = sharedPrefManager.getSeenDealsIds()
-        _notifiedDeals.update {
-                list -> list.map {
-            if (seenDealIds.contains(it.deal.deal_id)) it.copy(isSeen = true)
-            else it
-        }.sortedByDescending { it.timestamp }
-        }
-        _unseenCount.value = _notifiedDeals.value.count{ !it.isSeen}
-    }
-
-
-    fun markAsSeen(dealId: String){
-        viewModelScope.launch {
-            sharedPrefManager.addSeenDealId(dealId)
-        }
-        _notifiedDeals.update{list ->
-            list.map{
-                if (it.deal.deal_id == dealId) it.copy(isSeen = true)
-                else it
-            }.sortedByDescending { it.timestamp }
-        }
-        _unseenCount.value = _notifiedDeals.value.count { !it.isSeen }
-    }
-
-    fun markAllAsSeen() {
-        viewModelScope.launch {
-            val allDealIds = _notifiedDeals.value.map { it.deal.deal_id }
-            allDealIds.forEach {
-                    it -> sharedPrefManager.addSeenDealId(it)
+        // Marking as seen now simply means adding the ID to SharedPreferences.
+        // The reactive flow will handle the UI update automatically.
+        fun markAsSeen(dealId: String) {
+            viewModelScope.launch {
+                sharedPrefManager.addSeenDealId(dealId)
             }
         }
 
-        _notifiedDeals.update { list ->
-            list.map { it.copy(isSeen = true) }.sortedByDescending { it.timestamp }
+        fun markAllAsSeen() {
+            viewModelScope.launch {
+                val allDealIds = notifiedDeals.value.map { it.deal_id }
+                sharedPrefManager.addSeenDealIds(allDealIds)
+            }
         }
-
-        _unseenCount.value = 0
-    }
 
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)

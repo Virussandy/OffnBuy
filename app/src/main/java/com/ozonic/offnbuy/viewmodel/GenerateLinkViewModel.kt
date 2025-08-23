@@ -9,25 +9,17 @@ import com.ozonic.offnbuy.model.SupportedStore
 import com.ozonic.offnbuy.repository.GenerateLinkRepository
 import com.ozonic.offnbuy.repository.StoresRepository
 import com.ozonic.offnbuy.repository.UserDataRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.regex.Pattern
 
-class GenerateLinkViewModel(
-    application: Application,
-    private val authViewModel: AuthViewModel // Dependency to know the current user
-) : ViewModel() {
+@OptIn(ExperimentalCoroutinesApi::class)
+class GenerateLinkViewModel(application: Application, authViewModel: AuthViewModel) : ViewModel() {
 
-    // The repository now needs the DAO for its own operations
     private val generateLinkRepository = GenerateLinkRepository()
-
     private val storesRepository: StoresRepository
-
-    // A dedicated repository for all user-specific data
-    private val userDataRepository = UserDataRepository(
-        AppDatabase.getDatabase(application).favoriteDealDao(),
-        AppDatabase.getDatabase(application).generatedLinkDao()
-    )
+    private val userDataRepository: UserDataRepository
 
     private val _supportedStores = MutableStateFlow<List<SupportedStore>>(emptyList())
     val supportedStores: StateFlow<List<SupportedStore>> = _supportedStores.asStateFlow()
@@ -35,13 +27,15 @@ class GenerateLinkViewModel(
     private val _productLink = MutableStateFlow("")
     val productLink: StateFlow<String> = _productLink.asStateFlow()
 
-    // This now intelligently fetches links for the currently logged-in user.
-    private val _recentLinks = MutableStateFlow<List<String>>(emptyList())
-    val recentLinks: StateFlow<List<String>> = _recentLinks.asStateFlow()
+    // --- THIS IS THE KEY CHANGE ---
+    // The UI will now reactively collect this StateFlow.
+    // It automatically switches to the correct user's data flow when they log in/out.
+    val recentLinks: StateFlow<List<String>>
 
-    private var currentPage = 0
-    private val _hasMoreLinks = MutableStateFlow(true)
-    val hasMoreLinks: StateFlow<Boolean> = _hasMoreLinks.asStateFlow()
+    // We no longer need manual pagination state in the ViewModel
+    // as we will display the entire reactive list.
+    val hasMoreLinks: StateFlow<Boolean> = MutableStateFlow(false)
+    val isListLoading: StateFlow<Boolean> = MutableStateFlow(false)
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -52,40 +46,53 @@ class GenerateLinkViewModel(
     private val _isError = MutableStateFlow(false)
     val isError: StateFlow<Boolean> = _isError.asStateFlow()
 
-    private val _isListLoading = MutableStateFlow(false)
-    val isListLoading: StateFlow<Boolean> = _isListLoading.asStateFlow()
-
-
     init {
         val db = AppDatabase.getDatabase(application)
         storesRepository = StoresRepository(db.supportedStoreDao())
+        userDataRepository = UserDataRepository(db.favoriteDealDao(), db.generatedLinkDao(), db.userProfileDao())
+
+        // Use flatMapLatest to reactively switch to the new user's Flow
+        recentLinks = authViewModel.authState.flatMapLatest { authState ->
+            if (authState is AuthState.Authenticated) {
+                // If a user is logged in (anonymous or not), get their links flow
+                userDataRepository.getGeneratedLinks(authState.user.uid)
+                    .map { linkList -> linkList.map { it.url } } // Transform List<GeneratedLink> to List<String>
+            } else {
+                // If no user, provide a flow with an empty list
+                flowOf(emptyList())
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+
         viewModelScope.launch {
-            // Start listening to the local database immediately
             storesRepository.getSupportedStores().collect { stores ->
                 _supportedStores.value = stores
             }
         }
-        // Sync with Firestore in the background
         viewModelScope.launch {
             storesRepository.syncSupportedStores()
         }
-        // Load the first page when the ViewModel is created
-        loadMoreLinks()
     }
 
-    fun loadMoreLinks() {
-        if (!_hasMoreLinks.value || _isListLoading.value) return // Use the new flag
+    fun generateLink() {
+        if (_productLink.value.isBlank() || _isError.value) return
+        val currentUserId = userDataRepository.getCurrentUserId() ?: return
 
         viewModelScope.launch {
-            _isListLoading.value = true // Use the new flag
-            val newLinks = userDataRepository.getGeneratedLinksPaginated(currentPage)
-            if (newLinks.isNotEmpty()) {
-                _recentLinks.value = _recentLinks.value + newLinks.map { it.url }
-                currentPage++
-            } else {
-                _hasMoreLinks.value = false
+            _isLoading.value = true
+            try {
+                val response = generateLinkRepository.generateLink(_productLink.value)
+                if (response.success == 1 && response.data != null && response.data.startsWith("https")) {
+                    // Simply add the link to the repository.
+                    // The Flow will automatically pick up the change and update the UI.
+                    userDataRepository.addGeneratedLink(currentUserId, response.data)
+                }
+                _generatedLink.value = response
+            } catch (e: Exception) {
+                _generatedLink.value = ApiResponse(error = 1, message = "An unexpected error occurred.")
+            } finally {
+                _isLoading.value = false
             }
-            _isListLoading.value = false // Use the new flag
         }
     }
 
@@ -103,36 +110,7 @@ class GenerateLinkViewModel(
         }
     }
 
-    fun generateLink() {
-        if (_productLink.value.isBlank() || _isError.value) return
-
-        viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                // Generate the link via the API
-                var response = generateLinkRepository.generateLink(_productLink.value)
-
-                if (response.success == 1 && response.data != null && response.data.startsWith("https")) {
-                    // Use the UserDataRepository to save the link to the current user's account
-                    userDataRepository.addGeneratedLink(response.data)
-                    _recentLinks.value = emptyList()
-                    currentPage = 0
-                    _hasMoreLinks.value = true // Also reset the "has more" flag
-
-                    // Reload the first page from the database.
-                    // Since the database sorts by creation date, the new link will now be at the top.
-                    loadMoreLinks()
-                }
-                _generatedLink.value = response
-            } catch (e: Exception) {
-                _generatedLink.value = ApiResponse(error = 1, message = "An unexpected error occurred.")
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    fun clearProductLink(){
+    fun clearProductLink() {
         _productLink.value = ""
     }
 

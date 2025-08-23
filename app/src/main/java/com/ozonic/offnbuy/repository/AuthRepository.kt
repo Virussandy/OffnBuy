@@ -2,19 +2,28 @@ package com.ozonic.offnbuy.repository
 
 import android.app.Activity
 import android.net.Uri
-import android.util.Log
-import com.google.firebase.auth.*
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.PhoneAuthCredential
+import com.google.firebase.auth.PhoneAuthOptions
+import com.google.firebase.auth.PhoneAuthProvider
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import com.ozonic.offnbuy.model.User
+import com.ozonic.offnbuy.util.NetworkConnectivityObserver
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 
 // Custom exception for clarity
 class ReAuthenticationRequiredException(message: String) : Exception(message)
 
-class AuthRepository {
+class AuthRepository(private val connectivityObserver: NetworkConnectivityObserver) {
 
     val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
@@ -35,8 +44,11 @@ class AuthRepository {
     }
 
     suspend fun reloadUser(): User? {
+
         val currentUser = auth.currentUser
-        Log.d("OffnBuy",currentUser.toString())
+        if (!connectivityObserver.observe().first()) {
+            return mapFirebaseUser(currentUser)
+        }
         if (currentUser == null) {
             return signInAnonymouslyIfNeeded()
         }
@@ -95,6 +107,9 @@ class AuthRepository {
      * This is the key to ensuring there is always a userId to work with.
      */
     suspend fun signInAnonymouslyIfNeeded(): User? {
+        if (!connectivityObserver.observe().first()) {
+            return null // Cannot sign in anonymously while offline
+        }
         if (auth.currentUser == null) {
             val authResult = auth.signInAnonymously().await()
             createUserProfile(authResult.user) // Create a basic profile for the new anonymous user
@@ -156,8 +171,9 @@ class AuthRepository {
         }
     }
 
-    suspend fun updateUserEmailInDb(uid: String, email: String) {
-        db.collection("users").document(uid).update("email", email).await()
+    suspend fun updateUserEmailInDb(email: String) {
+        val user = auth.currentUser ?: throw IllegalStateException("No user signed in.")
+        db.collection("users").document(user.uid).update("email", email).await()
     }
 
     suspend fun updateProfilePicture(uri: Uri) {

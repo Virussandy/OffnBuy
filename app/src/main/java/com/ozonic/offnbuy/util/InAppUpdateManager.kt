@@ -1,7 +1,6 @@
 package com.ozonic.offnbuy.util
 
 import android.app.Activity
-import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.google.android.play.core.appupdate.AppUpdateManager
@@ -30,7 +29,6 @@ class InAppUpdateManager(private val activity: Activity) : DefaultLifecycleObser
     private val installListener = InstallStateUpdatedListener { state ->
         if (state.installStatus() == InstallStatus.DOWNLOADED) {
             // After the update is downloaded, notify the UI that it's ready to be installed.
-            Log.d("InAppUpdate", "Update downloaded. Ready to install.")
             _updateState.value = UpdateState.UpdateReadyToInstall(appUpdateManager)
         }
     }
@@ -68,7 +66,6 @@ class InAppUpdateManager(private val activity: Activity) : DefaultLifecycleObser
 
             if (isUpdateAvailable && isFlexibleUpdateAllowed) {
                 // An update is available and the flexible flow is allowed.
-                Log.d("InAppUpdate", "Flexible update available.")
                 appUpdateManager.startUpdateFlowForResult(
                     appUpdateInfo,
                     AppUpdateType.FLEXIBLE,
@@ -76,7 +73,6 @@ class InAppUpdateManager(private val activity: Activity) : DefaultLifecycleObser
                     UPDATE_REQUEST_CODE
                 )
             } else {
-                Log.d("InAppUpdate", "No flexible update available.")
                 _updateState.value = UpdateState.UpdateNotAvailable
             }
         }

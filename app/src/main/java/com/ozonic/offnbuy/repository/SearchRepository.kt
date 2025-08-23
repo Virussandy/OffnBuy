@@ -1,6 +1,5 @@
 package com.ozonic.offnbuy.repository
 
-import android.util.Log
 import com.algolia.client.api.SearchClient
 import com.algolia.client.model.search.SearchForHits
 import com.algolia.client.model.search.SearchMethodParams
@@ -42,7 +41,6 @@ class SearchRepository {
                 ).results.first()
                 val dealItem: List<DealItem> = mapHitsToDealItems(result as SearchResponse)
                 val hasMore = ((result.page ?: 0) + 1) < (result.nbPages ?: 0)
-                Log.d("DealsRepository", "Search result: $result")
                 Pair(dealItem, hasMore)
             } catch (e: Exception) {
                 e.printStackTrace()

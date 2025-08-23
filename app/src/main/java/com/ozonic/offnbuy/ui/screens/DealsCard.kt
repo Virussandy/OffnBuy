@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedButton
@@ -29,8 +30,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.toUpperCase
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -60,10 +63,11 @@ fun DealCard(
                 AsyncImage(
                     model = imageRequest,
                     contentDescription = deal.title,
-                    contentScale = ContentScale.Crop,
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(1f)
+                        .aspectRatio(1f),
+//                    clipToBounds = false
                 )
                 // Discount Badge
                 if (!deal.discount.isNullOrBlank()) {
@@ -71,15 +75,15 @@ fun DealCard(
                         modifier = Modifier
                             .padding(4.dp)
                             .align(Alignment.TopStart),
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f)
+                        shape = MaterialTheme.shapes.extraSmall,
+                        color = MaterialTheme.colorScheme.error
                     ) {
                         Text(
-                            text = deal.discount,
+                            text = deal.discount.toUpperCase(Locale.current),
                             style = MaterialTheme.typography.labelSmall,
-//                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.padding(8.dp)
+                            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp)
                         )
                     }
                 }
@@ -94,8 +98,10 @@ fun DealCard(
                     text = deal.title ?: "No Title",
                     style = MaterialTheme.typography.labelMedium,
 //                    fontWeight = FontWeight.Medium,
+                    minLines = 2,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -107,6 +113,8 @@ fun DealCard(
                         } else {
                             "₹${deal.price}"
                         },
+                        minLines = 1,
+                        maxLines = 1,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -117,6 +125,8 @@ fun DealCard(
                         }else{
                             "₹${deal.originalPrice}"
                         },
+                        minLines = 1,
+                        maxLines = 1,
                         style = MaterialTheme.typography.labelSmall.copy(
                             textDecoration = TextDecoration.LineThrough
                         ),
@@ -135,13 +145,20 @@ fun DealCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
 //                        fontWeight = FontWeight.Bold,
+                        overflow = TextOverflow.Ellipsis,
+                        minLines = 1,
+                        maxLines = 1,
                         modifier = Modifier.weight(1f)
+
                     )
                     Icon(imageVector = Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.height(12.dp))
                     Text(
                         text = getTimeAgo(deal.posted_on),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        minLines = 1,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
@@ -156,13 +173,13 @@ fun DealCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                ElevatedButton (
+                Button(
                     onClick = onClick,
                     shape = MaterialTheme.shapes.medium
                 ) {
                     Text("Shop Now")
                 }
-                IconButton(onClick = { dealShare(context, deal.title, deal.url) }) {
+                IconButton(onClick = { dealShare(context, deal.title, deal.price, deal.url) }) {
                     Icon(
                         Icons.Default.Share,
                         contentDescription = "Share",
@@ -174,8 +191,8 @@ fun DealCard(
     }
 }
 
-fun dealShare(context: Context, title: String?, url: String?) {
-    val shareText = "${title}\n${url}"
+fun dealShare(context: Context, title: String?, price: String?, url: String?) {
+    val shareText = "${title}\n${if(price != null) "₹$price" else ""}\n${url}"
 
     val sendIntent = Intent().apply {
         action = Intent.ACTION_SEND

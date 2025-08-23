@@ -38,6 +38,10 @@ class SharedPrefManager(context: Context) {
     }
 
     // --- Reactive Flows for ViewModel ---
+
+    val seenDealIdsFlow: Flow<Set<String>> = sharedPreferences.asFlow(KEY_DEAL_IDS) {
+        getStringSet(it, emptySet()) ?: emptySet()
+    }
     val darkModeFlow: Flow<Boolean> = sharedPreferences.asFlow(DARK_MODE) {
         getBoolean(it, false)
     }
@@ -93,5 +97,11 @@ class SharedPrefManager(context: Context) {
     fun setDynamicColor(isDynamicColor: Boolean) {
         // Corrected: No .apply() needed inside the block
         sharedPreferences.edit { putBoolean(DYNAMIC_COLOR, isDynamicColor) }
+    }
+
+    fun addSeenDealIds(dealIds: List<String>) {
+        val currentIds = getSeenDealsIds().toMutableSet()
+        currentIds.addAll(dealIds)
+        sharedPreferences.edit { putStringSet(KEY_DEAL_IDS, currentIds) }
     }
 }

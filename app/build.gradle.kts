@@ -1,3 +1,6 @@
+import io.grpc.internal.SharedResourceHolder.release
+import io.netty.util.ReferenceCountUtil.release
+import org.gradle.kotlin.dsl.release
 import java.util.Properties
 
 val localProperties = Properties()
@@ -22,32 +25,48 @@ android {
         applicationId = "com.ozonic.offnbuy"
         minSdk = 30
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 14
+        versionName = "1.0.13"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(localProperties.getProperty("KEYSTORE_FILE"))
+            storePassword = localProperties.getProperty("KEYSTORE_PASSWORD")
+            keyAlias = localProperties.getProperty("KEY_ALIAS")
+            keyPassword = localProperties.getProperty("KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+        getByName("release") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     buildFeatures {
         buildConfig = true
     }
 
-    defaultConfig{
-        // Expose keys to BuildConfig
-        buildConfigField("String", "APP_ID", "${localProperties.getProperty("APP_ID")}")
-        buildConfigField("String", "API_KEY", "${localProperties.getProperty("API_KEY")}")
-        buildConfigField("String", "INDEX_NAME", "${localProperties.getProperty("INDEX_NAME")}")
-        buildConfigField("String", "API_URL", "${localProperties.getProperty("API_URL")}")
-        buildConfigField("String", "API_TOKEN", "${localProperties.getProperty("API_TOKEN")}")
+    buildTypes{
+        release {
+            signingConfig = signingConfigs.getByName("release")
+            buildConfigField("String", "APP_ID", "${localProperties.getProperty("APP_ID")}")
+            buildConfigField("String", "API_KEY", "${localProperties.getProperty("API_KEY")}")
+            buildConfigField("String", "INDEX_NAME", "${localProperties.getProperty("INDEX_NAME")}")
+            buildConfigField("String", "API_URL", "${localProperties.getProperty("API_URL")}")
+            buildConfigField("String", "API_TOKEN", "${localProperties.getProperty("API_TOKEN")}")
+        }
+        debug {
+            buildConfigField("String", "APP_ID", "${localProperties.getProperty("APP_ID")}")
+            buildConfigField("String", "API_KEY", "${localProperties.getProperty("API_KEY")}")
+            buildConfigField("String", "INDEX_NAME", "${localProperties.getProperty("INDEX_NAME")}")
+            buildConfigField("String", "API_URL", "${localProperties.getProperty("API_URL")}")
+            buildConfigField("String", "API_TOKEN", "${localProperties.getProperty("API_TOKEN")}")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
