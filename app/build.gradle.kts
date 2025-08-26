@@ -25,8 +25,8 @@ android {
         applicationId = "com.ozonic.offnbuy"
         minSdk = 30
         targetSdk = 35
-        versionCode = 14
-        versionName = "1.0.13"
+        versionCode = 30
+        versionName = "1.0.29"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -97,6 +97,7 @@ dependencies {
     implementation(libs.material3)
     implementation(libs.firebase.appcheck.debug)
     implementation(libs.firebase.appcheck.playintegrity)
+    implementation(libs.androidx.runtime)
     testImplementation(libs.junit)
     implementation (libs.ktor.client.android)
     androidTestImplementation(libs.androidx.junit)
@@ -146,4 +147,6 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     implementation(libs.app.update.ktx)
+    implementation(libs.google.firebase.appcheck.playintegrity)
+    implementation(libs.recaptcha)
 }

@@ -1,4 +1,4 @@
-package com.ozonic.offnbuy.ui.screens
+package com.ozonic.offnbuy.presentation.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -26,20 +26,25 @@ import androidx.compose.ui.unit.dp
 
 /**
  * A centralized, reusable loading overlay that places a progress indicator
- * in the center of a semi-transparent background.
+ * in the center of a semi-transparent background. It also blocks user input.
+ * @param modifier The modifier to be applied to the overlay.
  */
 @Composable
 fun LoadingOverlay(modifier: Modifier) {
     Box(
         modifier = modifier
             .background(MaterialTheme.colorScheme.scrim.copy(alpha = if (isSystemInDarkTheme()) 0.5f else 0.2f))
-            .clickable(enabled = true, onClick = {}), // Semi-transparent overlay
+            .clickable(enabled = true, onClick = {}), // This blocks clicks
         contentAlignment = Alignment.Center
     ) {
         CircularProgressIndicator()
     }
 }
 
+/**
+ * A banner that appears at the top of the screen when the device is offline.
+ * @param isOnline A boolean indicating the current network status.
+ */
 @Composable
 fun OfflineBanner(isOnline: Boolean) {
     AnimatedVisibility(

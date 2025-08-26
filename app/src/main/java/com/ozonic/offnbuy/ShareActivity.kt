@@ -5,8 +5,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.ozonic.offnbuy.ui.screens.ShareScreen
-import com.ozonic.offnbuy.ui.theme.OffnBuyTheme
+import com.ozonic.offnbuy.presentation.theme.OffnBuyTheme
+import com.ozonic.offnbuy.presentation.ui.screens.ShareScreen
 
 class ShareActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,7 +23,7 @@ class ShareActivity : ComponentActivity() {
             OffnBuyTheme {
                 ShareScreen(
                     sharedText = sharedText,
-                    onFinish = { finish() } // Close the activity when the dialog is dismissed
+                    onFinish = { finish() }
                 )
             }
         }

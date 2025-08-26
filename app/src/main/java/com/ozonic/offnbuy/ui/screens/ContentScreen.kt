@@ -1,4 +1,4 @@
-package com.ozonic.offnbuy.ui.screens
+package com.ozonic.offnbuy.presentation.ui.screens
 
 import android.content.Context
 import android.content.Intent
@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -25,10 +26,13 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,31 +46,100 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.net.toUri
-import com.ozonic.offnbuy.model.ContentType
+import androidx.navigation.NavController
+import com.ozonic.offnbuy.domain.model.ContentType
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ContentScreen(contentType: ContentType, modifier: Modifier = Modifier) {
-    when (contentType) {
-        ContentType.TermsAndConditions -> TermsAndConditionsScreen()
-        ContentType.PrivacyPolicy -> PrivacyPolicyScreen()
-        ContentType.HelpAndSupport -> HelpAndSupportScreen()
+fun ContentScreen(navController: NavController, contentType: ContentType) {
+
+    AppScaffold(
+        navController = navController,
+        showBottomNav = false,
+        topBar = {
+            TopAppBar(
+                title = when(contentType){
+                    ContentType.TermsAndConditions -> {
+                        {
+                            Text("Terms and Conditions",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,)
+                        }
+                    }
+                    ContentType.PrivacyPolicy -> {
+                        {
+                            Text("Privacy Policy",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,)
+                        }
+                    }
+                    ContentType.HelpAndSupport -> {
+                        { Text("Help & Support",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,) }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(
+                        onClick = { navController.popBackStack() }
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                }
+            )
+        }
+    ) {
+        paddingValues ->
+        when (contentType) {
+            ContentType.TermsAndConditions -> WebViewScreen(url = "https://offnbuy.netlify.app/#/terms",
+                modifier = Modifier.padding(paddingValues))
+            ContentType.PrivacyPolicy -> WebViewScreen(
+                url = "https://offnbuy.netlify.app/#/privacy",
+                modifier = Modifier.padding(paddingValues)
+            )
+            ContentType.HelpAndSupport -> HelpAndSupportScreen(modifier = Modifier.padding(paddingValues))
+        }
     }
 }
 
 @Composable
-fun TermsAndConditionsScreen(modifier: Modifier = Modifier) {
-    WebViewScreen(url = "https://offnbuy.netlify.app/#/terms")
+fun WebViewScreen(url: String, modifier: Modifier) {
+    var isLoading by remember { mutableStateOf(true) }
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        AndroidView(factory = {
+            WebView(it).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                webViewClient = object : WebViewClient() {
+                    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                        super.onPageStarted(view, url, favicon)
+                        isLoading = true
+                    }
+
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        super.onPageFinished(view, url)
+                        isLoading = false
+                    }
+                }
+                settings.javaScriptEnabled = true
+                loadUrl(url)
+            }
+        })
+        if (isLoading) {
+            CircularProgressIndicator()
+        }
+    }
 }
 
 @Composable
-fun PrivacyPolicyScreen(modifier: Modifier = Modifier) {
-    WebViewScreen(url = "https://offnbuy.netlify.app/#/privacy")
-}
-
-// In ContentScreen.kt
-
-@Composable
-fun HelpAndSupportScreen(modifier: Modifier = Modifier) {
+fun HelpAndSupportScreen(modifier: Modifier) {
     val context = LocalContext.current
     LazyColumn(
         modifier = modifier
@@ -74,15 +147,6 @@ fun HelpAndSupportScreen(modifier: Modifier = Modifier) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            Text(
-                "Help & Support",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        // --- DISCLAIMER ABOUT DEALS ---
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -103,8 +167,6 @@ fun HelpAndSupportScreen(modifier: Modifier = Modifier) {
                 }
             }
         }
-
-        // --- FAQ Section ---
         item {
             Text(
                 "Frequently Asked Questions",
@@ -113,36 +175,30 @@ fun HelpAndSupportScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
-
         item {
             FaqItem(
                 question = "How do notifications work?",
                 answer = "Our app sends notifications for new deals. To receive them, please ensure you have granted notification permissions. You can check this in your phone's Settings > Apps > OffnBuy > Notifications."
             )
         }
-
         item {
             FaqItem(
                 question = "How do I generate an affiliate link?",
                 answer = "Navigate to the 'Links' tab from the bottom menu. Paste a product URL from a supported store into the text field and tap 'Generate Link'. You can then copy or share your new link."
             )
         }
-
         item {
             FaqItem(
                 question = "Why can't I find a deal when I search?",
                 answer = "Our search feature looks through the most recent deals. If a deal is old or has expired, it may no longer appear in search results."
             )
         }
-
         item {
             FaqItem(
                 question = "Does OffnBuy sell these products?",
                 answer = "No, OffnBuy does not sell any products. We are a platform that finds and shares deals from various online stores. All purchases are made directly on the respective store's website."
             )
         }
-
-        // --- Contact Us Section ---
         item {
             Text(
                 "Contact Us",
@@ -219,93 +275,47 @@ private fun SupportOption(text: String, icon: ImageVector, onClick: () -> Unit) 
     }
 }
 
-@Composable
-fun WebViewScreen(url: String) {
-    var isLoading by remember { mutableStateOf(true) }
-    Box(modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center) {
-        AndroidView(factory = {
-            WebView(it).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                webViewClient = object : WebViewClient() {
-                    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                        super.onPageStarted(view, url, favicon)
-                        isLoading = true
-                    }
-
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        super.onPageFinished(view, url)
-                        isLoading = false
-                    }
-                }
-                settings.javaScriptEnabled = true
-                loadUrl(url)
-            }
-        })
-        if (isLoading){
-            CircularProgressIndicator()
-        }
-    }
-}
-
-// Add this function to your ContentScreen.kt file
-
 private fun reportBugByEmail(context: Context) {
-    // Gather device and app version information
     val packageManager = context.packageManager
     val packageName = context.packageName
     val packageInfo = packageManager.getPackageInfo(packageName, 0)
     val appVersionName = packageInfo.versionName
-    val appVersionCode = packageInfo.versionCode
-    val osVersion = Build.VERSION.SDK_INT
-    val deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}"
+    val appVersionCode = Build.VERSION.SDK_INT
 
-    // Pre-fill the email body with useful information
     val emailBody = """
         Describe the bug you encountered here...
         
         --------------------
         Device Information (Do not edit)
         App Version: $appVersionName ($appVersionCode)
-        Device: $deviceModel
-        Android OS: $osVersion
+        Device: ${Build.MANUFACTURER} ${Build.MODEL}
+        Android OS: ${Build.VERSION.SDK_INT}
         --------------------
     """.trimIndent()
 
-    // Create the email intent
     val intent = Intent(Intent.ACTION_SENDTO).apply {
-        data = "mailto:".toUri() // Only email apps should handle this
-        putExtra(Intent.EXTRA_EMAIL, arrayOf("ozonic.offnbuy@gmail.com")) // Your support email
+        data = "mailto:".toUri()
+        putExtra(Intent.EXTRA_EMAIL, arrayOf("ozonic.offnbuy@gmail.com"))
         putExtra(Intent.EXTRA_SUBJECT, "Bug Report - OffnBuy App v$appVersionName")
         putExtra(Intent.EXTRA_TEXT, emailBody)
     }
-
-    // Use a chooser to let the user pick their email app
     try {
         context.startActivity(Intent.createChooser(intent, "Send Bug Report via..."))
     } catch (e: android.content.ActivityNotFoundException) {
-        // Handle the case where no email app is installed
         Toast.makeText(context, "No email app found.", Toast.LENGTH_SHORT).show()
     }
 }
 
-
 private fun sendSupportEmail(context: Context) {
-    // Create the email intent
     val intent = Intent(Intent.ACTION_SENDTO).apply {
-        data = "mailto:".toUri() // Only email apps should handle this
-        putExtra(Intent.EXTRA_EMAIL, arrayOf("ozonic.offnbuy@gmail.com")) // Your support email
+        data = "mailto:".toUri()
+        putExtra(Intent.EXTRA_EMAIL, arrayOf("ozonic.offnbuy@gmail.com"))
         putExtra(Intent.EXTRA_SUBJECT, "Support Request - OffnBuy App")
         putExtra(Intent.EXTRA_TEXT, "Please describe your issue or question here:\n\n")
     }
-
-    // Use a chooser to let the user pick their email app
     try {
         context.startActivity(Intent.createChooser(intent, "Send Support Email via..."))
     } catch (e: android.content.ActivityNotFoundException) {
-        // Handle the case where no email app is installed
         Toast.makeText(context, "No email app found.", Toast.LENGTH_SHORT).show()
     }
 }

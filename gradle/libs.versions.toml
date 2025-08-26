@@ -17,12 +17,14 @@ composeBom = "2025.08.00"
 coreSplashscreen = "1.0.1"
 materialIconsExtendedAndroid = "1.7.8"
 navigationComposeAndroid = "2.9.3"
+recaptcha = "18.8.0-beta02"
 roomVersion = "2.7.2"
 kspVersion = "2.7.2"
 uiUtil = "1.9.0"
 material3 = "1.3.2"
 firebaseAppcheckDebug = "19.0.0"
 firebaseAppcheckPlayintegrity = "19.0.0"
+runtime = "1.9.0"
 
 [libraries]
 algoliasearch-client-kotlin = { module = "com.algolia:algoliasearch-client-kotlin", version = "3.26.0" }
@@ -43,6 +45,7 @@ firebase-database = { module = "com.google.firebase:firebase-database" }
 firebase-storage = { module = "com.google.firebase:firebase-storage" }
 firebase-firestore = { module = "com.google.firebase:firebase-firestore" }
 firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
+google-firebase-appcheck-playintegrity = { module = "com.google.firebase:firebase-appcheck-playintegrity" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
@@ -68,6 +71,8 @@ androidx-ui-util = { group = "androidx.compose.ui", name = "ui-util", version.re
 material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 firebase-appcheck-debug = { group = "com.google.firebase", name = "firebase-appcheck-debug", version.ref = "firebaseAppcheckDebug" }
 firebase-appcheck-playintegrity = { group = "com.google.firebase", name = "firebase-appcheck-playintegrity", version.ref = "firebaseAppcheckPlayintegrity" }
+androidx-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtime" }
+recaptcha = { module = "com.google.android.recaptcha:recaptcha", version.ref = "recaptcha" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

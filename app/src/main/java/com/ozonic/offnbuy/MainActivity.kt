@@ -1,3 +1,5 @@
+// offnbuy/MainActivity.kt
+
 package com.ozonic.offnbuy
 
 import android.content.Intent
@@ -8,35 +10,19 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ozonic.offnbuy.data.AppDatabase
-import com.ozonic.offnbuy.repository.NotificationsRepository
-import com.ozonic.offnbuy.repository.UserDataRepository
-import com.ozonic.offnbuy.ui.screens.MainScreen
+import androidx.navigation.compose.rememberNavController
+import com.ozonic.offnbuy.presentation.ui.LocalSnackbarHostState
+import com.ozonic.offnbuy.presentation.ui.screens.MainScreen
+import com.ozonic.offnbuy.presentation.viewmodel.AuthViewModel
+import com.ozonic.offnbuy.presentation.viewmodel.AuthViewModelFactory
 import com.ozonic.offnbuy.util.InAppUpdateManager
-import com.ozonic.offnbuy.util.NetworkConnectivityObserver
-import com.ozonic.offnbuy.util.NotificationSyncManager
-import com.ozonic.offnbuy.util.SharedPrefManager
 import com.ozonic.offnbuy.util.UpdateState
-import com.ozonic.offnbuy.util.UserDataManager
-import com.ozonic.offnbuy.viewmodel.AuthViewModel
-import com.ozonic.offnbuy.viewmodel.MainViewModel
-import com.ozonic.offnbuy.viewmodel.SettingsViewModel
-import com.ozonic.offnbuy.viewmodel.SettingsViewModelFactory
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var userDataManager: UserDataManager
     private val dealIdState = mutableStateOf<String?>(null)
     private lateinit var inAppUpdateManager: InAppUpdateManager
 
@@ -49,44 +35,11 @@ class MainActivity : ComponentActivity() {
         lifecycle.addObserver(inAppUpdateManager)
 
         setContent {
-
-            // The AuthViewModel is now created here, within the composable scope
-            val authViewModel: AuthViewModel = viewModel()
-            val settingsViewModel: SettingsViewModel = viewModel(
-                factory = SettingsViewModelFactory(application, authViewModel)
-            )
-            val mainViewModel: MainViewModel = viewModel()
-            val userDataRepository = remember {
-                val db = AppDatabase.getDatabase(application)
-                UserDataRepository(db.favoriteDealDao(), db.generatedLinkDao(), db.userProfileDao())
-            }
-
-            val notificationsRepository = remember {
-                val db = AppDatabase.getDatabase(application)
-                val sharedPrefs = SharedPrefManager(application)
-                NotificationsRepository(
-                    application = application,
-                    notifiedDealDao = db.notifiedDealDao(),
-                    connectivityObserver = NetworkConnectivityObserver(application),
-                    sharedPrefManager = sharedPrefs
-                )
-            }
-            val notificationSyncManager = remember { NotificationSyncManager(notificationsRepository) }
-            // Start both sync managers when the app launches
-            LaunchedEffect(key1 = Unit) {
-                userDataManager.start()
-                notificationSyncManager.start() // Start the notification sync
-            }
-
-            LaunchedEffect(key1 = Unit) {
-                userDataManager.start()
-            }
-            userDataManager = remember {
-                UserDataManager(lifecycleScope, authViewModel, userDataRepository)
-            }
+            val navController = rememberNavController()
+            val snackbarHostState = remember { SnackbarHostState() }
 
             val updateState by inAppUpdateManager.updateState.collectAsState()
-            val snackbarHostState = remember { SnackbarHostState() }
+            val authViewModel: AuthViewModel = viewModel(factory = AuthViewModelFactory(this))
 
             LaunchedEffect(updateState) {
                 if (updateState is UpdateState.UpdateReadyToInstall) {
@@ -101,28 +54,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // --- THIS IS THE GLOBAL REFRESHER ---
-            LaunchedEffect(Unit) {
-                lifecycleScope.launch {
-                    repeatOnLifecycle(Lifecycle.State.STARTED) {
-                        authViewModel.refreshUser()
-                        settingsViewModel.checkNotificationStatus(application)
-                    }
-                }
-            }
-
             dealIdState.value = intent.getStringExtra("deal_id")
 
-            MainScreen(
-                dealIdState = dealIdState,
-                authViewModel = authViewModel,
-                settingsViewModel = settingsViewModel,
-                mainViewModel = mainViewModel,
-                snackbarHostState = snackbarHostState
-            )
+            CompositionLocalProvider(LocalSnackbarHostState provides snackbarHostState) {
+                // MainActivity now only calls MainScreen.
+                MainScreen(navController = navController, authViewModel = authViewModel)
+            }
         }
     }
-    // These standard Android lifecycle methods will correctly update the AppState.
+
     override fun onStart() {
         super.onStart()
         AppState.isInForeground = true
@@ -132,7 +72,6 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         AppState.isInForeground = false
     }
-    // --- END OF FIX ---
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -140,10 +79,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/**
- * A simple global object to track the app's foreground/background state.
- * This is used by MyFirebaseMessagingService to decide if a system notification should be shown.
- */
 object AppState {
     var isInForeground = false
 }

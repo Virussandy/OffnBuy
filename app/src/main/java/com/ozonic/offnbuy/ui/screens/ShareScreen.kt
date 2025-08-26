@@ -1,4 +1,4 @@
-package com.ozonic.offnbuy.ui.screens
+package com.ozonic.offnbuy.presentation.ui.screens
 
 import android.content.Context
 import android.content.Intent
@@ -27,6 +27,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -35,15 +37,17 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ozonic.offnbuy.R
-import com.ozonic.offnbuy.viewmodel.ShareUiState
-import com.ozonic.offnbuy.viewmodel.ShareViewModel
+import com.ozonic.offnbuy.di.DataModule
+import com.ozonic.offnbuy.presentation.viewmodel.ShareUiState
+import com.ozonic.offnbuy.presentation.viewmodel.ShareViewModel
+import com.ozonic.offnbuy.presentation.viewmodel.ShareViewModelFactory
 
 @Composable
-fun ShareScreen(
-    sharedText: String?,
-    onFinish: () -> Unit
-) {
-    val viewModel: ShareViewModel = viewModel()
+fun ShareScreen(sharedText: String?, onFinish: () -> Unit) {
+    val context = LocalContext.current
+    val viewModel: ShareViewModel = viewModel(
+        factory = ShareViewModelFactory(DataModule.provideLinkRepository(context))
+    )
     val uiState by viewModel.uiState.collectAsState()
 
     // Process the URL when the screen is first composed
@@ -52,6 +56,7 @@ fun ShareScreen(
     }
 
     Surface(modifier = Modifier.fillMaxSize()) {
+        // Corrected 'when' statement
         when (val state = uiState) {
             is ShareUiState.Loading -> {
                 LoadingContent()
@@ -68,7 +73,6 @@ fun ShareScreen(
                 )
             }
             is ShareUiState.Error -> {
-                // The UI now receives and displays the specific error message from the ViewModel.
                 ResultScreen(
                     title = "Something Went Wrong",
                     message = state.message,
@@ -111,15 +115,13 @@ fun LoadingContent() {
 fun ResultScreen(
     title: String,
     message: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconColor: androidx.compose.ui.graphics.Color,
+    icon: ImageVector,
+    iconColor: Color,
     urlToOpen: String,
     urlToShare: String,
     onFinish: () -> Unit
 ) {
     val context = LocalContext.current
-    // Determine if we should show the "Buy Now" and "Share" buttons.
-    // We only show them if we have a valid URL to work with.
     val showActionButtons = urlToOpen.startsWith("http")
 
     Column(
@@ -151,12 +153,6 @@ fun ResultScreen(
         )
         Spacer(modifier = Modifier.weight(1f))
 
-//        Icon(
-//            painter = painterResource(id = R.drawable.icon),
-//            contentDescription = "OffnBuy Logo",
-//            tint = MaterialTheme.colorScheme.primary,
-//            modifier = Modifier.size(64.dp)
-//        )
         Image(
             painter = painterResource(id = R.drawable.icon),
             contentDescription = "OffnBuy Logo",
@@ -171,10 +167,11 @@ fun ResultScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // --- Action Buttons Logic ---
         if (showActionButtons) {
             Button(
-                modifier = Modifier.fillMaxWidth().height(50.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
                 onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, urlToOpen.toUri())
                     context.startActivity(intent)
@@ -185,18 +182,20 @@ fun ResultScreen(
             }
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedButton(
-                modifier = Modifier.fillMaxWidth().height(50.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
                 onClick = {
                     shareLink(context, urlToShare)
-//                    onFinish()
                 }
             ) {
                 Text("Share Link")
             }
         } else {
-            // If there's no valid URL, just show a "Close" button.
             Button(
-                modifier = Modifier.fillMaxWidth().height(50.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
                 onClick = onFinish
             ) {
                 Text("Close")
@@ -205,7 +204,6 @@ fun ResultScreen(
     }
 }
 
-// This helper function can stay in this file
 fun shareLink(context: Context, url: String) {
     val sendIntent = Intent().apply {
         action = Intent.ACTION_SEND

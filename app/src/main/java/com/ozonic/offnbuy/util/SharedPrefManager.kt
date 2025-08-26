@@ -20,7 +20,6 @@ class SharedPrefManager(context: Context) {
         const val DYNAMIC_COLOR = "dynamic_color"
     }
 
-    // A generic extension function to convert any preference into a Flow
     private fun <T> SharedPreferences.asFlow(
         key: String,
         getter: SharedPreferences.(String) -> T
@@ -50,11 +49,18 @@ class SharedPrefManager(context: Context) {
         getBoolean(it, false)
     }
 
+    // Corrected implementation for notification status
     private val _notificationsEnabled = MutableStateFlow(true)
     fun notificationsEnabledFlow(application: Application): Flow<Boolean> {
+        // Initialize with the current status
         _notificationsEnabled.value = NotificationManagerCompat.from(application).areNotificationsEnabled()
         return _notificationsEnabled
     }
+
+    /**
+     * Manually checks the notification status and updates the internal flow.
+     * This should be called when the app resumes.
+     */
     fun checkNotificationStatus(application: Application) {
         _notificationsEnabled.value = NotificationManagerCompat.from(application).areNotificationsEnabled()
     }
@@ -77,7 +83,6 @@ class SharedPrefManager(context: Context) {
     }
 
     fun setFirstTimeRun(isFirstTime: Boolean) {
-        // Corrected: No .apply() needed inside the block
         sharedPreferences.edit { putBoolean(IS_FIRST_TIME, isFirstTime) }
     }
 
@@ -86,7 +91,6 @@ class SharedPrefManager(context: Context) {
     }
 
     fun setDarkMode(isDarkMode: Boolean) {
-        // Corrected: No .apply() needed inside the block
         sharedPreferences.edit { putBoolean(DARK_MODE, isDarkMode) }
     }
 
@@ -95,7 +99,6 @@ class SharedPrefManager(context: Context) {
     }
 
     fun setDynamicColor(isDynamicColor: Boolean) {
-        // Corrected: No .apply() needed inside the block
         sharedPreferences.edit { putBoolean(DYNAMIC_COLOR, isDynamicColor) }
     }
 

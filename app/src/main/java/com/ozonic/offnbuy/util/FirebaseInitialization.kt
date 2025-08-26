@@ -5,33 +5,31 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
-import android.util.Log
 import com.google.firebase.FirebaseApp
+import com.google.firebase.appcheck.FirebaseAppCheck
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessaging
-import com.ozonic.offnbuy.data.AppDatabase
+import com.ozonic.offnbuy.data.local.AppDatabase
 
-class  FirebaseInitialization : Application() {
+class FirebaseInitialization : Application() {
 
     val database: AppDatabase by lazy { AppDatabase.getDatabase(this) }
 
     override fun onCreate() {
         super.onCreate()
         FirebaseApp.initializeApp(this)
+        val firebaseAppCheck = FirebaseAppCheck.getInstance()
+        firebaseAppCheck.installAppCheckProviderFactory(
+            PlayIntegrityAppCheckProviderFactory.getInstance()
+        )
         initiateFCM()
         createNotificationChannel(this)
     }
 
-    fun initiateFCM(){
+    fun initiateFCM() {
         FirebaseFirestore.getInstance()
         FirebaseMessaging.getInstance().subscribeToTopic("all")
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    Log.d("FCM", "Successfully subscribed to 'all' topic")
-                } else {
-                    Log.e("FCM", "Failed to subscribe to topic", task.exception)
-                }
-            }
     }
 
     fun createNotificationChannel(context: Context) {

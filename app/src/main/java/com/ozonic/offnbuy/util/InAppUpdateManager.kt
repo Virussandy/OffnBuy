@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-// Define states for the UI to observe
 sealed interface UpdateState {
     object Idle : UpdateState
     object UpdateNotAvailable : UpdateState
@@ -28,15 +27,12 @@ class InAppUpdateManager(private val activity: Activity) : DefaultLifecycleObser
 
     private val installListener = InstallStateUpdatedListener { state ->
         if (state.installStatus() == InstallStatus.DOWNLOADED) {
-            // After the update is downloaded, notify the UI that it's ready to be installed.
             _updateState.value = UpdateState.UpdateReadyToInstall(appUpdateManager)
         }
     }
 
-    // This is called when the Activity's onResume is triggered
     override fun onResume(owner: LifecycleOwner) {
         super.onResume(owner)
-        // Check for updates that were accepted but not installed.
         appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
             if (appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED) {
                 _updateState.value = UpdateState.UpdateReadyToInstall(appUpdateManager)
@@ -44,14 +40,12 @@ class InAppUpdateManager(private val activity: Activity) : DefaultLifecycleObser
         }
     }
 
-    // This is called when the Activity's onCreate is triggered
     override fun onCreate(owner: LifecycleOwner) {
         super.onCreate(owner)
         appUpdateManager.registerListener(installListener)
         checkForUpdate()
     }
 
-    // This is called when the Activity's onDestroy is triggered
     override fun onDestroy(owner: LifecycleOwner) {
         super.onDestroy(owner)
         appUpdateManager.unregisterListener(installListener)
@@ -65,7 +59,6 @@ class InAppUpdateManager(private val activity: Activity) : DefaultLifecycleObser
             val isFlexibleUpdateAllowed = appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)
 
             if (isUpdateAvailable && isFlexibleUpdateAllowed) {
-                // An update is available and the flexible flow is allowed.
                 appUpdateManager.startUpdateFlowForResult(
                     appUpdateInfo,
                     AppUpdateType.FLEXIBLE,

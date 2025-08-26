@@ -1,24 +1,37 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Keep all data model classes used by Firebase, Room, and Kotlinx Serialization.
+-keep class com.ozonic.offnbuy.data.local.model.** { *; }
+-keep class com.ozonic.offnbuy.data.remote.dto.** { *; }
+-keep class com.ozonic.offnbuy.domain.model.** { *; }
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# For Kotlinx Serialization: Keep classes annotated with @Serializable and their members
+-keep @kotlinx.serialization.Serializable class * {
+    <fields>;
+    <methods>;
+}
+-keep class kotlinx.serialization.** { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# For Room Database: Keep DAOs, Entities, and the Database class
+-keep class * implements androidx.room.Dao { *; }
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keep @androidx.room.Entity class *
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# For Kotlin Coroutines, which your ViewModels and Repositories use extensively
+-keepclassmembers class kotlinx.coroutines.flow.** {
+    *;
+}
+-keepclassmembers class **$*COROUTINE$* {
+    *;
+}
+-keepclassmembers class kotlin.coroutines.jvm.internal.BaseContinuationImpl {
+    *;
+}
 
--keep class com.ozonic.offnbuy.model.** { *; }
--keepnames class com.ozonic.offnbuy.model.**
+# General rule for Kotlin data classes to preserve their 'copy' and other synthetic methods
+-keepclassmembers class ** extends java.io.Serializable {
+    static final long serialVersionUID;
+    private static final java.io.ObjectStreamField[] serialPersistentFields;
+    private void writeObject(java.io.ObjectOutputStream);
+    private void readObject(java.io.ObjectInputStream);
+    java.lang.Object writeReplace();
+    java.lang.Object readResolve();
+}

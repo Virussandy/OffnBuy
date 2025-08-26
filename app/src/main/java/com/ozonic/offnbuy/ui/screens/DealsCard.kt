@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,14 +37,11 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
-import com.ozonic.offnbuy.model.DealItem
+import com.ozonic.offnbuy.domain.model.Deal
 import com.ozonic.offnbuy.util.getTimeAgo
 
 @Composable
-fun DealCard(
-    deal: DealItem,
-    onClick: () -> Unit,
-) {
+fun DealCard(deal: Deal, onClick: () -> Unit) {
     val context = LocalContext.current
     val imageRequest = ImageRequest.Builder(context)
         .data(deal.image)
@@ -58,18 +54,13 @@ fun DealCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
         Column {
-            // --- Image Section with Discount Badge ---
             Box {
                 AsyncImage(
                     model = imageRequest,
                     contentDescription = deal.title,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f),
-//                    clipToBounds = false
+                    modifier = Modifier.fillMaxWidth().aspectRatio(1f)
                 )
-                // Discount Badge
                 if (!deal.discount.isNullOrBlank()) {
                     Surface(
                         modifier = Modifier
@@ -88,8 +79,6 @@ fun DealCard(
                     }
                 }
             }
-
-            // --- Content Section ---
             Column(
                 modifier = Modifier.padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -97,7 +86,6 @@ fun DealCard(
                 Text(
                     text = deal.title ?: "No Title",
                     style = MaterialTheme.typography.labelMedium,
-//                    fontWeight = FontWeight.Medium,
                     minLines = 2,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -133,7 +121,6 @@ fun DealCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                // Store and Time Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -144,12 +131,10 @@ fun DealCard(
                         text = deal.store ?: "Store",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-//                        fontWeight = FontWeight.Bold,
                         overflow = TextOverflow.Ellipsis,
                         minLines = 1,
                         maxLines = 1,
                         modifier = Modifier.weight(1f)
-
                     )
                     Icon(imageVector = Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.height(12.dp))
                     Text(
@@ -162,10 +147,7 @@ fun DealCard(
                     )
                 }
             }
-
             HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
-
-            // --- Action Section ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -193,13 +175,11 @@ fun DealCard(
 
 fun dealShare(context: Context, title: String?, price: String?, url: String?) {
     val shareText = "${title}\n${if(price != null) "₹$price" else ""}\n${url}"
-
     val sendIntent = Intent().apply {
         action = Intent.ACTION_SEND
         putExtra(Intent.EXTRA_TEXT, shareText)
         type = "text/plain"
     }
-
     val shareIntent = Intent.createChooser(sendIntent, "Share OffnBuy deal via")
     context.startActivity(shareIntent)
 }

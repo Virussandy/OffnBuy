@@ -1,31 +1,12 @@
-package com.ozonic.offnbuy.ui.screens
+package com.ozonic.offnbuy.presentation.ui.screens
 
-import android.Manifest
-import android.app.Activity
-import android.app.Application
-import android.content.Context
 import android.content.ContextWrapper
-import android.os.Build
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -37,106 +18,67 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
-import com.ozonic.offnbuy.model.NotifiedDeal
-import com.ozonic.offnbuy.model.NotifiedDealItem
+import com.ozonic.offnbuy.di.AppModule
+import com.ozonic.offnbuy.di.ViewModelModule
+import com.ozonic.offnbuy.domain.model.NotifiedDeal
+import com.ozonic.offnbuy.presentation.viewmodel.NotificationViewModel
+import com.ozonic.offnbuy.presentation.viewmodel.NotificationViewModelFactory
 import com.ozonic.offnbuy.util.getTimeAgo
-import com.ozonic.offnbuy.viewmodel.NotificationViewModel
-import com.ozonic.offnbuy.viewmodel.SettingsViewModel
-import kotlinx.coroutines.delay
 
-fun Context.findActivity(): Activity = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> throw IllegalStateException("Context is not an Activity")
-}
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotificationScreen(
-    viewModel: NotificationViewModel = viewModel(),
-    settingsViewModel: SettingsViewModel,
-    navController: NavController,
-//    onLoadMore: () -> Unit,
-//    hasMore: Boolean,
-//    isLoading: Boolean
-) {
-    val notifications by viewModel.notifiedDeals.collectAsState()
-//    val isFirstTime by viewModel.isFirstTime.collectAsState()
+fun NotificationScreen(navController: NavController) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val viewModel: NotificationViewModel = viewModel(
+        factory = NotificationViewModelFactory(
+            getNotificationsUseCase = ViewModelModule.provideGetNotificationsUseCase(context),
+            sharedPrefManager = AppModule.provideSharedPrefManager(context)
+        )
+    )
+    val notifications by viewModel.notifiedDeals.collectAsState()
 
-//    if(isFirstTime){
-        LaunchedEffect(Unit) {
-            delay(1000L)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                ActivityCompat.requestPermissions(
-                    context.findActivity(),
-                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                    1001
-                )
-            }
+    AppScaffold(
+        navController = navController,
+        showBottomNav = true,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        "Notification",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            )
         }
-//    }
-
-//    if(isFirstTime){
-        DisposableEffect(lifecycleOwner) {
-            val observer = LifecycleEventObserver { _, event ->
-                // When the app is resumed (e.g., after returning from the permission dialog)
-                if (event == Lifecycle.Event.ON_RESUME) {
-                    // We explicitly tell the SettingsViewModel to re-check the status.
-                    settingsViewModel.checkNotificationStatus(context.applicationContext as Application)
+    ) { paddingValues ->
+        if (notifications.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "No Notifications", style = MaterialTheme.typography.bodyLarge)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(paddingValues),
+                contentPadding = PaddingValues(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                itemsIndexed(notifications, key = { _, it -> it.deal_id }) { index, notification ->
+                    NotificationItem(
+                        notification = notification,
+                        onClick = {
+                            viewModel.markAsSeen(notification.deal.deal_id)
+                            navController.navigate("dealDetail/${notification.deal.deal_id}")
+                        }
+                    )
                 }
             }
-            lifecycleOwner.lifecycle.addObserver(observer)
-
-            // Clean up the observer when the composable is disposed.
-            onDispose {
-                lifecycleOwner.lifecycle.removeObserver(observer)
-            }
-        }
-//    }
-
-
-    if (notifications.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(text = "No Notifications", style = MaterialTheme.typography.bodyLarge)
-        }
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            itemsIndexed(notifications, key = { _, it -> it.deal.deal_id }) { index, notification ->
-                NotificationItem(
-                    notification = notification,
-                    onClick = {
-                        viewModel.markAsSeen(notification.deal.deal_id)
-                        navController.navigate("dealDetail/${notification.deal.deal_id}")
-                    }
-                )
-//                if (index >= notifications.size - 3 && hasMore && !isLoading) {
-//                    LaunchedEffect(key1 = index) {
-//                        onLoadMore()
-//                    }
-//                }
-            }
-//            if (isLoading && notifications.isNotEmpty()) {
-//                item {
-//                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-//                        CircularProgressIndicator()
-//                    }
-//                }
-//            }
         }
     }
 }
@@ -163,7 +105,6 @@ private fun NotificationItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Image
             AsyncImage(
                 model = notification.deal.image,
                 contentDescription = notification.deal.title,
@@ -172,8 +113,6 @@ private fun NotificationItem(
                     .size(76.dp)
                     .clip(MaterialTheme.shapes.medium)
             )
-
-            // Content Column
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = notification.deal.title ?: "New Deal Available",
@@ -182,28 +121,24 @@ private fun NotificationItem(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-
-                // Pricing Row
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = if(notification.deal.price!=null) "₹${notification.deal.price}" else "",
+                        text = if (notification.deal.price != null) "₹${notification.deal.price}" else "",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = if(notification.deal.originalPrice!=null) "₹${notification.deal.originalPrice}" else "",
+                        text = if (notification.deal.originalPrice != null) "₹${notification.deal.originalPrice}" else "",
                         style = MaterialTheme.typography.labelSmall.copy(
                             textDecoration = TextDecoration.LineThrough
                         ),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-
-                // Store and Time Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -224,7 +159,6 @@ private fun NotificationItem(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
                 }
             }
         }

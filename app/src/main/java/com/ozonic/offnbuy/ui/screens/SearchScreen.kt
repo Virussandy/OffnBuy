@@ -1,6 +1,7 @@
-package com.ozonic.offnbuy.ui.screens
+package com.ozonic.offnbuy.presentation.ui.screens
 
 import android.content.Intent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,8 +31,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -39,119 +45,146 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.ozonic.offnbuy.R
-import com.ozonic.offnbuy.model.DealItem
-import com.ozonic.offnbuy.model.SearchResultStatus
+import com.ozonic.offnbuy.di.DataModule
+import com.ozonic.offnbuy.di.ViewModelModule
+import com.ozonic.offnbuy.domain.model.SearchResultStatus
+import com.ozonic.offnbuy.presentation.viewmodel.SearchViewModel
+import com.ozonic.offnbuy.presentation.viewmodel.SearchViewModelFactory
+import com.ozonic.offnbuy.ui.screens.DealCard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchScreen(
-    searchDeals: List<DealItem>,
-    isLoading: Boolean,
-    searchQuery: String,
-    hasMoreItems: Boolean,
-    searchStatus: SearchResultStatus,
-    onSearch: () -> Unit,
-    onSearchQueryChange: (String) -> Unit,
-    loadMoreDeals: () -> Unit,
-) {
-
+fun SearchScreen(navController: NavController, viewModel: SearchViewModel) {
     val context = LocalContext.current
-    val focusRequester = remember { FocusRequester() }
+
+    val searchDeals by viewModel.deals.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val hasMoreItems by viewModel.hasMoreItems.collectAsState()
+    val searchStatus by viewModel.searchResultStatus.collectAsState()
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
     val listState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
+    val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         if (searchDeals.isNotEmpty()) {
             listState.scrollToItem(0)
         }
     }
-    Column(modifier = Modifier.fillMaxSize()) {
+
+    AppScaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        "Search",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                },
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background, // Set this to the same color
+                ),
+            )
+        },
+        navController = navController,
+        showBottomNav = true,
+    ) { paddingValues ->
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             SearchBar(
                 searchQuery = searchQuery,
-                onSearchQueryChange = { onSearchQueryChange(it) },
-                onSearch = { onSearch() },
+                onSearchQueryChange = { viewModel.onSearchQueryChange(it) },
+                onSearch = { viewModel.executeSearch() },
                 listState = listState,
                 focusRequester = focusRequester,
                 scope = scope,
             )
-        LazyVerticalGrid(
-            state = listState,
-            columns = GridCells.Fixed(2),
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
-        ) {
-            itemsIndexed(
-                items = searchDeals,
-                key = { _, deal -> "${deal.deal_id}_${deal.posted_on}" }
-            ) { index, deal ->
-                DealCard(
-                    deal = deal,
-                    onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, deal.url?.toUri())
-                        context.startActivity(intent)
-                    },
-                )
-
-                if (index >= searchDeals.size - 12 && hasMoreItems && !isLoading) {
-                    LaunchedEffect(index) {
-                        loadMoreDeals()
-                    }
-                }
-            }
-
-            if (isLoading) {
-                item(span = { GridItemSpan(2) }) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
-            }
-
-            if (!isLoading) {
-                when (searchStatus) {
-                    SearchResultStatus.NoResults -> {
-                        item(span = { GridItemSpan(2) }) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("No Deals Found")
-                            }
+            LazyVerticalGrid(
+                state = listState,
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
+            ) {
+                itemsIndexed(
+                    items = searchDeals,
+                    key = { _, deal -> "${deal.deal_id}_${deal.posted_on}" }
+                ) { index, deal ->
+                    DealCard(
+                        deal = deal,
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, deal.url?.toUri())
+                            context.startActivity(intent)
+                        },
+                    )
+                    if (index >= searchDeals.size - 12 && hasMoreItems && !isLoading) {
+                        LaunchedEffect(index) {
+                            viewModel.loadMoreDeals()
                         }
                     }
-
-                    SearchResultStatus.EndReached -> {
-                        item(span = { GridItemSpan(2) }) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("No more deals")
-                            }
+                }
+                if (isLoading) {
+                    item(span = { GridItemSpan(2) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
                         }
                     }
+                }
+                if (!isLoading) {
+                    when (searchStatus) {
+                        SearchResultStatus.NoResults -> {
+                            item(span = { GridItemSpan(2) }) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("No Deals Found")
+                                }
+                            }
+                        }
 
-                    else -> {}
+                        SearchResultStatus.EndReached -> {
+                            item(span = { GridItemSpan(2) }) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("No more deals")
+                                }
+                            }
+                        }
+
+                        else -> {}
+                    }
                 }
             }
         }
@@ -202,7 +235,7 @@ fun SearchBar(
                 focusedContainerColor = Color.Transparent,
                 unfocusedContainerColor = Color.Transparent,
                 disabledContainerColor = Color.Transparent,
-                focusedIndicatorColor = Color.Transparent,  // <-- remove underline
+                focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
                 cursorColor = MaterialTheme.colorScheme.primary
             )

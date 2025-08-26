@@ -2,9 +2,8 @@ package com.ozonic.offnbuy.util
 
 import android.util.Log
 import com.google.firebase.firestore.ListenerRegistration
-import com.ozonic.offnbuy.repository.UserDataRepository
-import com.ozonic.offnbuy.viewmodel.AuthState
-import com.ozonic.offnbuy.viewmodel.AuthViewModel
+import com.ozonic.offnbuy.domain.repository.UserDataRepository
+import com.ozonic.offnbuy.presentation.viewmodel.AuthViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -15,43 +14,40 @@ class UserDataManager(
     private val authViewModel: AuthViewModel,
     private val userDataRepository: UserDataRepository
 ) {
-    // Keep track of active listeners to stop them later
     private val activeListeners = mutableListOf<ListenerRegistration>()
 
     fun start() {
         scope.launch {
-            authViewModel.authState.map { (it as? AuthState.Authenticated)?.user?.uid }
+            authViewModel.currentUser
+                .map { user -> user?.uid }
                 .distinctUntilChanged()
                 .collect { userId ->
                     Log.d("UserDataManager", "User session changed. New UID: $userId")
-                    // When the user changes, stop old listeners, clear local data,
-                    // and start new listeners for the new user.
                     handleUserSessionChange(userId)
                 }
         }
     }
 
     private suspend fun handleUserSessionChange(userId: String?) {
-        stopAllListeners()
-        userDataRepository.clearAllLocalUserData()
+        stopAllListeners() // Always stop listeners on user change
 
-        if (userId != null) {
+        if (userId == null) {
+            Log.d("UserDataManager", "User logged out. Clearing all local data.")
+            userDataRepository.clearAllLocalUserData()
+        } else {
             Log.d("UserDataManager", "Starting real-time listeners for user: $userId")
             try {
-                // Start all listeners, including the new profile listener
                 val favoritesListener = userDataRepository.listenForFavoriteChanges(userId)
                 val linksListener = userDataRepository.listenForGeneratedLinkChanges(userId)
-                val profileListener = userDataRepository.listenForUserProfileChanges(userId) // ADD THIS
+                val profileListener = userDataRepository.listenForUserProfileChanges(userId)
 
                 activeListeners.add(favoritesListener)
                 activeListeners.add(linksListener)
-                activeListeners.add(profileListener) // ADD THIS
+                activeListeners.add(profileListener)
                 Log.d("UserDataManager", "Real-time listeners started successfully.")
             } catch (e: Exception) {
                 Log.e("UserDataManager", "Error starting listeners", e)
             }
-        } else {
-            Log.d("UserDataManager", "No authenticated user. Listeners will not be started.")
         }
     }
 

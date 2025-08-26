@@ -27,7 +27,6 @@ class NetworkConnectivityObserver(context: Context) {
                     launch { send(false) }
                 }
             }
-            // Immediately send the current status
             val isConnected = connectivityManager.activeNetwork != null
             launch { send(isConnected) }
 

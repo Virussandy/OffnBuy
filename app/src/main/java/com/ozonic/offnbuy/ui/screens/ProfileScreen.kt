@@ -1,16 +1,10 @@
-package com.ozonic.offnbuy.ui.screens
+package com.ozonic.offnbuy.presentation.ui.screens
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -19,123 +13,106 @@ import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FormatPaint
-import androidx.compose.material.icons.filled.ImagesearchRoller
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Policy
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import coil3.compose.AsyncImage
 import com.ozonic.offnbuy.R
-import com.ozonic.offnbuy.model.ContentType
-import com.ozonic.offnbuy.model.UserProfile
-import com.ozonic.offnbuy.viewmodel.AuthState
-import com.ozonic.offnbuy.viewmodel.ProfileViewModel
+import com.ozonic.offnbuy.domain.model.ContentType
+import com.ozonic.offnbuy.domain.model.NavigationItem
+import com.ozonic.offnbuy.domain.model.User
+import com.ozonic.offnbuy.domain.model.UserProfile
+import com.ozonic.offnbuy.presentation.viewmodel.AuthViewModel
+import com.ozonic.offnbuy.presentation.viewmodel.SettingsViewModel
+import com.ozonic.offnbuy.util.appShare
 
-data class SettingsState(
-    val isDarkMode: Boolean,
-    val isDynamicColor: Boolean,
-    val notificationEnabled: Boolean,
-    val authState: AuthState
-)
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    settingsState: SettingsState,
-    profileViewModel: ProfileViewModel,
-    onToggleDarkMode: () -> Unit,
-    onToggleDynamicColor: () -> Unit,
-    onContentScreenClick: (String) -> Unit,
-    onAppShare: () -> Unit,
-    onNotificationSettingsClick: () -> Unit,
-    onLoginClick: () -> Unit,
-    onLinkGenerateClick: () -> Unit,
-    onEditProfileClick: () -> Unit,
-    onLogout: () -> Unit,
+    navController: NavController,
+    authViewModel: AuthViewModel,
+    settingsViewModel: SettingsViewModel,
 ) {
+    val context = LocalContext.current
     val scrollState = rememberScrollState()
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    val userProfile by profileViewModel.userProfile.collectAsState()
-    val isAnonymousUser = (settingsState.authState as? AuthState.Authenticated)?.user?.isAnonymous ?: true
+    val currentUser by authViewModel.currentUser.collectAsState()
+    val userProfile by authViewModel.userProfile.collectAsState()
+    val settingsState by settingsViewModel.settingsState.collectAsState()
 
     if (showLogoutDialog) {
         LogoutConfirmationDialog(
             onConfirmLogout = {
                 showLogoutDialog = false
-                onLogout()
+                authViewModel.signOut()
             },
-            onDismiss = {
-                showLogoutDialog = false
+            onDismiss = { showLogoutDialog = false }
+        )
+    }
+
+    AppScaffold(
+        navController = navController,
+        showBottomNav = true,
+        topBar = { TopAppBar(title = { Text("Profile",style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,) }) }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .verticalScroll(state = scrollState)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (currentUser?.isAnonymous == false) {
+                AuthenticatedHeader(userProfile, onEditProfileClick = {
+                    navController.navigate(NavigationItem.EditProfileScreen.route)
+                })
+            } else {
+                UnauthenticatedHeader(onLoginClick = {
+                    navController.navigate(NavigationItem.AuthScreen.route)
+                })
             }
-        )
-    }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-            .verticalScroll(state = scrollState),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Spacer(modifier = Modifier.height(1.dp))
-        if (userProfile != null && !isAnonymousUser) {
-            AuthenticatedHeader(userProfile, onEditProfileClick)
-        } else {
-            UnauthenticatedHeader(onLoginClick)
+            SettingsSection(
+                settingsState = settingsState,
+                onToggleDarkMode = { settingsViewModel.toggleDarkMode() },
+                onToggleDynamicColor = { settingsViewModel.toggleDynamicColor() },
+                onNotificationSettingsClick = {
+                    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    }
+                    context.startActivity(intent)
+                },
+                onEditProfileClick = {navController.navigate(NavigationItem.EditProfileScreen.route)},
+                isAnonymousUser = currentUser?.isAnonymous == true,
+            )
+
+            AboutAndSupportSection(
+                onContentScreenClick = { route ->
+                    navController.navigate(NavigationItem.ContentScreen.withArgs(route))
+                },
+                onAppShare = { appShare(context) }
+            )
+
+            if (currentUser?.isAnonymous == false) {
+                LogoutButton(onLogoutClick = { showLogoutDialog = true })
+            }
         }
-
-
-        SettingsSection(
-            settingsState = settingsState,
-            onToggleDarkMode = onToggleDarkMode,
-            onToggleDynamicColor = onToggleDynamicColor,
-            onEditProfileClick = onEditProfileClick,
-            onNotificationSettingsClick = onNotificationSettingsClick,
-//            onLinkGenerateClick = onLinkGenerateClick,
-            isAnonymousUser = isAnonymousUser
-        )
-
-        AboutAndSupportSection(onContentScreenClick, onAppShare)
-
-        if (!isAnonymousUser) {
-            LogoutButton(onLogoutClick = { showLogoutDialog = true })
-        }
-    }
-    if(settingsState.authState is AuthState.Loading){
-        LoadingOverlay(modifier = Modifier.fillMaxSize())
     }
 }
 
@@ -169,9 +146,8 @@ fun AuthenticatedHeader(user: UserProfile?, onEditProfileClick: () -> Unit) {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = user?.email ?: user?.phone ?: "Welcome back",
+                    text = user?.phone ?: user?.email ?: "Welcome back",
                     style = MaterialTheme.typography.bodyMedium,
-//                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -191,13 +167,11 @@ fun UnauthenticatedHeader(onLoginClick: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-//            Icon(
-//                painter = painterResource(R.drawable.app_logo),
-//                contentDescription = null,
-////                tint = MaterialTheme.colorScheme.primary,
-//                modifier = Modifier.size(40.dp)
-//            )
-            Image(painter = painterResource(R.drawable.icon), contentDescription = null, modifier = Modifier.size(40.dp))
+            Image(
+                painter = painterResource(R.drawable.icon),
+                contentDescription = null,
+                modifier = Modifier.size(40.dp)
+            )
             Text(
                 "Welcome to OffnBuy",
                 style = MaterialTheme.typography.titleMedium,
@@ -206,7 +180,7 @@ fun UnauthenticatedHeader(onLoginClick: () -> Unit) {
             Text(
                 "Log in or sign up to save your preferences and more.",
                 style = MaterialTheme.typography.bodySmall,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(4.dp))
             Button(
@@ -224,10 +198,9 @@ private fun SettingsSection(
     settingsState: SettingsState,
     onToggleDarkMode: () -> Unit,
     onToggleDynamicColor: () -> Unit,
-    onEditProfileClick: () -> Unit,
     onNotificationSettingsClick: () -> Unit,
-//    onLinkGenerateClick: () -> Unit,
-    isAnonymousUser: Boolean
+    onEditProfileClick: ()-> Unit,
+    isAnonymousUser: Boolean,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         ProfileOption(
@@ -251,20 +224,14 @@ private fun SettingsSection(
                 )
             }
         )
-        if (settingsState.authState is AuthState.Authenticated && !isAnonymousUser) {
+        if(!isAnonymousUser) {
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             ProfileOption(
                 text = "Edit Profile",
-                icon = Icons.Default.Edit,
-                onClick = onEditProfileClick
+                icon = Icons.Default.ManageAccounts,
+                onClick = onEditProfileClick,
             )
         }
-//        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-//        ProfileOption(
-//            text = "Generate Link",
-//            icon = Icons.Filled.Link,
-//            onClick = onLinkGenerateClick,
-//        )
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         NotificationProfileOption(
             text = "Notification Settings",
@@ -316,20 +283,20 @@ private fun LogoutButton(onLogoutClick: () -> Unit) {
             contentColor = MaterialTheme.colorScheme.onErrorContainer
         ),
         shape = MaterialTheme.shapes.medium,
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = Modifier.fillMaxWidth()
     ) {
         Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Logout")
         Spacer(modifier = Modifier.size(ButtonDefaults.IconSpacing))
-        Text("Logout", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(vertical = 8.dp))
+        Text(
+            "Logout",
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
     }
 }
 
 @Composable
-private fun LogoutConfirmationDialog(
-    onConfirmLogout: () -> Unit,
-    onDismiss: () -> Unit
-) {
+private fun LogoutConfirmationDialog(onConfirmLogout: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Confirm Logout") },
