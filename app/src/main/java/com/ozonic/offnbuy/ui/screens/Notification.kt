@@ -1,14 +1,20 @@
+// offnbuy/ui/screens/Notification.kt
+
 package com.ozonic.offnbuy.presentation.ui.screens
 
-import android.content.ContextWrapper
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +45,7 @@ fun NotificationScreen(navController: NavController) {
         )
     )
     val notifications by viewModel.notifiedDeals.collectAsState()
+    var toggle by remember { mutableStateOf(false) }
 
     AppScaffold(
         navController = navController,
@@ -47,25 +54,49 @@ fun NotificationScreen(navController: NavController) {
             TopAppBar(
                 title = {
                     Text(
-                        "Notification",
+                        "Notifications", // Corrected title
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                     )
+                },
+                // THIS IS THE NEW ACTION
+                actions = {
+                    Box{
+                        IconButton(onClick = { toggle = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More")
+                        }
+                            DropdownMenu(
+                                expanded = toggle,
+                                onDismissRequest = { toggle = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Mark All as Read") },
+                                    onClick = {
+                                        viewModel.markAllAsSeen()
+                                        toggle = false
+                                    }
+                                )
+                            }
+                    }
                 }
             )
         }
     ) { paddingValues ->
         if (notifications.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
                 Text(text = "No Notifications", style = MaterialTheme.typography.bodyLarge)
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
                 contentPadding = PaddingValues(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {

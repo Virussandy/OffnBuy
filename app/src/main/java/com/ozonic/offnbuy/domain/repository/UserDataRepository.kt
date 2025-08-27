@@ -59,6 +59,7 @@ interface UserDataRepository {
      * @param userId The ID of the user.
      * @return A Flow emitting a list of [GeneratedLinkEntity].
      */
+    suspend fun fetchAndCacheUserProfile(userId: String)
     fun getGeneratedLinks(userId: String): Flow<List<GeneratedLinkEntity>>
 
     /**
@@ -78,13 +79,11 @@ interface UserDataRepository {
     suspend fun addGeneratedLink(userId: String, url: String)
 
     /**
-     * Migrates all local user data from an old user ID to a new one.
-     * This is typically used when an anonymous user signs in.
-     *
-     * @param fromUid The old user ID.
-     * @param toUid The new user ID.
+     * Fetches all of a user's data (profile, links, favorites) from Firestore
+     * and caches it in the local database.
+     * @param userId The ID of the user whose data needs to be synced.
      */
-    suspend fun migrateLocalUserData(fromUid: String, toUid: String)
+    suspend fun syncAllUserData(userId: String)
 
     /**
      * Clears all local user data from the database.

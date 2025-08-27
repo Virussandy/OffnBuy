@@ -1,23 +1,16 @@
 package com.ozonic.offnbuy.presentation.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.ozonic.offnbuy.domain.model.Deal
 import com.ozonic.offnbuy.domain.model.SearchResultStatus
 import com.ozonic.offnbuy.domain.usecase.SearchDealsUseCase
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-/**
- * ViewModel for the Search screen.
- * This ViewModel handles the logic for searching deals, managing search queries,
- * loading states, pagination, and the overall state of the search results.
- *
- * @param searchDealsUseCase The use case for executing deal searches.
- */
+@OptIn(FlowPreview::class)
 class SearchViewModel(
     private val searchDealsUseCase: SearchDealsUseCase
 ) : ViewModel() {
@@ -31,6 +24,20 @@ class SearchViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    // NEW: State for suggestions
+    private val _suggestions = MutableStateFlow<List<String>>(emptyList())
+    val suggestions: StateFlow<List<String>> = _suggestions.asStateFlow()
+
+    // NEW: State to control suggestion box visibility
+    private val _isFocused = MutableStateFlow(false)
+    val showSuggestions: StateFlow<Boolean> = combine(_isFocused, _searchQuery) { isFocused, query ->
+        isFocused && query.isNotBlank()
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000L),
+        initialValue = false
+    )
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -39,42 +46,67 @@ class SearchViewModel(
 
     private var currentPage = 0
 
-    /**
-     * Updates the search query text.
-     *
-     * @param query The new search query string.
-     */
+    init {
+        viewModelScope.launch {
+            _searchQuery
+                .debounce(300)
+                .distinctUntilChanged()
+                .collect { query ->
+                    if (query.length > 1) { // Only fetch suggestions if query is > 1 char
+                        Log.d("SearchViewModel", "Fetching suggestions for query: $query")
+                        fetchSuggestions(query)
+                    } else {
+                        _suggestions.value = emptyList()
+                    }
+                }
+        }
+    }
+
+    private suspend fun fetchSuggestions(query: String) {
+        val newSuggestions = searchDealsUseCase.getSuggestions(query)
+        Log.d("SearchViewModel", "Fetched suggestions: $newSuggestions")
+        _suggestions.value = newSuggestions
+    }
+
+    private suspend fun performSearch(query: String) {
+        if (query.isBlank()) return
+        _isLoading.value = true
+        _deals.value = emptyList()
+        currentPage = 0
+        try {
+            val (newDeals, hasMore) = searchDealsUseCase.execute(query, currentPage)
+            _deals.value = newDeals
+            _hasMoreItems.value = hasMore
+            _searchResultStatus.value = if (newDeals.isEmpty()) SearchResultStatus.NoResults else SearchResultStatus.ResultsFound
+        } catch (e: Exception) {
+            _searchResultStatus.value = SearchResultStatus.NoResults
+        } finally {
+            _isLoading.value = false
+        }
+    }
+
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
     }
 
-    /**
-     * Executes a new search. It resets the previous results and pagination.
-     */
-    fun executeSearch() {
-        if (_searchQuery.value.isBlank()) {
-            _deals.value = emptyList()
-            _hasMoreItems.value = false
-            _searchResultStatus.value = SearchResultStatus.Idle
-            return
-        }
-
+    fun executeSearch(query: String = _searchQuery.value) {
+        _searchQuery.value = query // Update the query in the search bar
+        _suggestions.value = emptyList() // Clear suggestions
         viewModelScope.launch {
-            _isLoading.value = true
-            _deals.value = emptyList() // Clear previous results
-            currentPage = 0 // Reset page number
-            try {
-                val (newDeals, hasMore) = searchDealsUseCase.execute(_searchQuery.value, currentPage)
-                _deals.value = newDeals
-                _hasMoreItems.value = hasMore
-                _searchResultStatus.value = if (newDeals.isEmpty()) SearchResultStatus.NoResults else SearchResultStatus.ResultsFound
-            } catch (e: Exception) {
-                _searchResultStatus.value = SearchResultStatus.NoResults
-            } finally {
-                _isLoading.value = false
-            }
+            performSearch(query)
         }
     }
+
+    fun onFocusChanged(isFocused: Boolean) {
+        _isFocused.value = isFocused
+    }
+
+    fun onClearSearch() {
+        _searchQuery.value = ""
+        _suggestions.value = emptyList()
+        _deals.value = emptyList()
+        _searchResultStatus.value = SearchResultStatus.Idle
+        }
 
     /**
      * Loads the next page of search results for the current query.

@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.Flow
 
 interface AuthRepository {
     fun getAuthStateStream(): Flow<User?>
-    suspend fun signInAnonymouslyIfNeeded()
     fun startPhoneNumberVerification(
         phone: String,
         activity: Activity,
@@ -17,7 +16,7 @@ interface AuthRepository {
     )
     // --- THIS IS THE CHANGE ---
     // Now returns the new User object and the old anonymous UID
-    suspend fun signInWithPhoneAuthCredential(credential: PhoneAuthCredential): Pair<User, String?>
+    suspend fun signInWithPhoneAuthCredential(credential: PhoneAuthCredential): User
     suspend fun signOut()
     suspend fun refreshUser()
     suspend fun updateDisplayName(displayName: String)

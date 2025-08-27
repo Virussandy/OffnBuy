@@ -18,4 +18,11 @@ interface SearchRepository {
      * and a [Boolean] indicating whether there are more pages of results available.
      */
     suspend fun searchDeals(searchText: String, page: Int): Pair<List<Deal>, Boolean>
+
+    /**
+     * Fetches search suggestions based on the user's query.
+     * @param query The text to get suggestions for.
+     * @return A list of suggestion strings.
+     */
+    suspend fun getSearchSuggestions(query: String): List<String>
 }

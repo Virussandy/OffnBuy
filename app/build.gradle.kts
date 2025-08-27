@@ -25,8 +25,8 @@ android {
         applicationId = "com.ozonic.offnbuy"
         minSdk = 30
         targetSdk = 35
-        versionCode = 30
-        versionName = "1.0.29"
+        versionCode = 34
+        versionName = "1.0.33"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

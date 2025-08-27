@@ -20,4 +20,13 @@ class SearchDealsUseCase(private val searchRepository: SearchRepository) {
     suspend fun execute(query: String, page: Int): Pair<List<Deal>, Boolean> {
         return searchRepository.searchDeals(query, page)
     }
+
+    /**
+     * Gets search suggestions.
+     * @param query The search query.
+     * @return A list of suggestion strings.
+     */
+    suspend fun getSuggestions(query: String): List<String> {
+        return searchRepository.getSearchSuggestions(query)
+    }
 }

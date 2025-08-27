@@ -21,18 +21,11 @@ import com.ozonic.offnbuy.presentation.viewmodel.SettingsViewModelFactory
 fun MainScreen(
     navController: NavHostController,
     authViewModel: AuthViewModel,
+    settingsViewModel: SettingsViewModel
 ) {
-    val settingsViewModel: SettingsViewModel = viewModel(
-        factory = SettingsViewModelFactory(
-            application = LocalContext.current.applicationContext as Application,
-            authViewModel = authViewModel,
-            sharedPrefManager = AppModule.provideSharedPrefManager(LocalContext.current)
-        )
-    )
-
     val settingsState by settingsViewModel.settingsState.collectAsState()
 
     OffnBuyTheme(darkTheme = settingsState.isDarkMode, dynamicColor = settingsState.isDynamicColor) {
-        AppNavigation(navHostController = navController, settingsViewModel = settingsViewModel, authViewModel = authViewModel)
+        AppNavigation(navHostController = navController, authViewModel = authViewModel, settingsViewModel = settingsViewModel)
     }
 }

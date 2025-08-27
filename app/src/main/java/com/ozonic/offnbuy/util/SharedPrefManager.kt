@@ -15,7 +15,7 @@ class SharedPrefManager(context: Context) {
 
     companion object {
         const val KEY_DEAL_IDS = "seen_deal_ids"
-        const val IS_FIRST_TIME = "is_first_time_run"
+        const val HAS_ASKED_FOR_NOTIFICATIONS = "has_asked_for_notifications"
         const val DARK_MODE = "dark_mode"
         const val DYNAMIC_COLOR = "dynamic_color"
     }
@@ -78,12 +78,12 @@ class SharedPrefManager(context: Context) {
         sharedPreferences.edit { putStringSet(KEY_DEAL_IDS, currentIds) }
     }
 
-    fun isFirstTimeRun(): Boolean {
-        return sharedPreferences.getBoolean(IS_FIRST_TIME, true)
+    fun hasAskedForNotifications(): Boolean {
+        return sharedPreferences.getBoolean(HAS_ASKED_FOR_NOTIFICATIONS, false)
     }
 
-    fun setFirstTimeRun(isFirstTime: Boolean) {
-        sharedPreferences.edit { putBoolean(IS_FIRST_TIME, isFirstTime) }
+    fun setHasAskedForNotifications(hasAsked: Boolean) {
+        sharedPreferences.edit { putBoolean(HAS_ASKED_FOR_NOTIFICATIONS, hasAsked) }
     }
 
     fun getDarkMode(): Boolean {

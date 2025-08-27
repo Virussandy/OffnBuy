@@ -17,44 +17,23 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.ozonic.offnbuy.MainActivity
-import com.ozonic.offnbuy.di.AppModule
-import com.ozonic.offnbuy.di.DataModule
 import com.ozonic.offnbuy.di.ViewModelModule
 import com.ozonic.offnbuy.domain.model.ContentType
 import com.ozonic.offnbuy.domain.model.NavigationItem
 import com.ozonic.offnbuy.presentation.ui.screens.*
 import com.ozonic.offnbuy.presentation.viewmodel.*
-import com.ozonic.offnbuy.util.InAppUpdateManager
-import com.ozonic.offnbuy.util.NotificationSyncManager
-import com.ozonic.offnbuy.util.UserDataManager
-import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavigation(
     navHostController: NavHostController,
     modifier: Modifier = Modifier,
-    settingsViewModel: SettingsViewModel,
     authViewModel: AuthViewModel,
+    settingsViewModel: SettingsViewModel
 ) {
     val context = LocalContext.current
-    val application = context.applicationContext as Application
-    val activity = context as MainActivity
 
     val dealsViewModel: DealsViewModel = viewModel(factory = DealsViewModelFactory(ViewModelModule.provideGetDealsUseCase(context)))
 
-    // ✅ Initialize your managers here, using the single AuthViewModel instance
-    // and the Activity's lifecycleScope for long-running jobs.
-    LaunchedEffect(key1 = Unit) {
-        val userDataRepository = DataModule.provideUserDataRepository(application)
-        val notificationRepository = DataModule.provideNotificationRepository(application)
-
-        val userDataManager =
-            UserDataManager(activity.lifecycleScope, authViewModel, userDataRepository)
-        val notificationSyncManager = NotificationSyncManager(notificationRepository)
-
-        userDataManager.start()
-        notificationSyncManager.start()
-    }
 
     NavHost(
         navController = navHostController,

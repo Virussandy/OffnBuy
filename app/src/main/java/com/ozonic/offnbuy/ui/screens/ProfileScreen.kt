@@ -36,6 +36,7 @@ import com.ozonic.offnbuy.domain.model.UserProfile
 import com.ozonic.offnbuy.presentation.viewmodel.AuthViewModel
 import com.ozonic.offnbuy.presentation.viewmodel.SettingsViewModel
 import com.ozonic.offnbuy.util.appShare
+import androidx.compose.runtime.collectAsState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,7 +100,7 @@ fun ProfileScreen(
                     context.startActivity(intent)
                 },
                 onEditProfileClick = {navController.navigate(NavigationItem.EditProfileScreen.route)},
-                isAnonymousUser = currentUser?.isAnonymous == true,
+                isAuthenticated = currentUser?.uid != null
             )
 
             AboutAndSupportSection(
@@ -200,7 +201,7 @@ private fun SettingsSection(
     onToggleDynamicColor: () -> Unit,
     onNotificationSettingsClick: () -> Unit,
     onEditProfileClick: ()-> Unit,
-    isAnonymousUser: Boolean,
+    isAuthenticated: Boolean,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         ProfileOption(
@@ -224,7 +225,7 @@ private fun SettingsSection(
                 )
             }
         )
-        if(!isAnonymousUser) {
+        if(isAuthenticated) {
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             ProfileOption(
                 text = "Edit Profile",

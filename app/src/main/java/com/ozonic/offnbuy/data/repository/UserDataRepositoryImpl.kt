@@ -1,3 +1,5 @@
+// offnbuy/data/repository/UserDataRepositoryImpl.kt
+
 package com.ozonic.offnbuy.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
@@ -5,13 +7,13 @@ import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.toObject
+import com.google.firebase.firestore.toObjects
 import com.ozonic.offnbuy.data.local.dao.FavoriteDealDao
 import com.ozonic.offnbuy.data.local.dao.GeneratedLinkDao
 import com.ozonic.offnbuy.data.local.dao.UserProfileDao
 import com.ozonic.offnbuy.data.local.model.FavoriteDealEntity
 import com.ozonic.offnbuy.data.local.model.GeneratedLinkEntity
 import com.ozonic.offnbuy.data.local.model.UserProfileEntity
-import com.ozonic.offnbuy.domain.model.User
 import com.ozonic.offnbuy.domain.model.UserProfile
 import com.ozonic.offnbuy.domain.repository.UserDataRepository
 import com.ozonic.offnbuy.util.Constants
@@ -22,12 +24,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-/**
- * Implementation of the [UserDataRepository] interface.
- * This class is responsible for managing all data related to a specific user,
- * such as their profile, favorite deals, and generated links. It coordinates
- * data between the local Room database and the remote Firestore database.
- */
 class UserDataRepositoryImpl(
     private val favoriteDealDao: FavoriteDealDao,
     private val generatedLinkDao: GeneratedLinkDao,
@@ -41,17 +37,16 @@ class UserDataRepositoryImpl(
         return auth.currentUser?.uid
     }
 
+    // The ViewModel will get its data directly from the local database (DAO).
     override fun getUserProfile(userId: String): Flow<UserProfile?> {
         return userProfileDao.getProfile(userId).map { it?.toDomainModel() }
     }
 
+    // This listener's only job is to update the local database when Firestore changes.
     override fun listenForUserProfileChanges(userId: String): ListenerRegistration {
         val docRef = db.collection(Constants.USERS).document(userId)
         return docRef.addSnapshotListener { snapshot, e ->
-            if (e != null) {
-                return@addSnapshotListener
-            }
-
+            if (e != null) return@addSnapshotListener
             if (snapshot != null && snapshot.exists()) {
                 val profile = snapshot.toObject<UserProfileEntity>()
                 if (profile != null) {
@@ -68,15 +63,10 @@ class UserDataRepositoryImpl(
     }
 
     override fun listenForFavoriteChanges(userId: String): ListenerRegistration {
-        val query = db.collection(Constants.USERS).document(userId)
-            .collection(Constants.FAVORITE_DEALS)
-
+        val query = db.collection(Constants.USERS).document(userId).collection(Constants.FAVORITE_DEALS)
         return query.addSnapshotListener { snapshot, e ->
-            if (e != null) {
-                return@addSnapshotListener
-            }
+            if (e != null) return@addSnapshotListener
             if (snapshot == null) return@addSnapshotListener
-
             for (docChange in snapshot.documentChanges) {
                 scope.launch {
                     val favorite = docChange.document.toObject<FavoriteDealEntity>()
@@ -93,16 +83,49 @@ class UserDataRepositoryImpl(
         return generatedLinkDao.getRecentLinksForUser(userId)
     }
 
-    override fun listenForGeneratedLinkChanges(userId: String): ListenerRegistration {
-        val query = db.collection(Constants.USERS).document(userId)
-            .collection(Constants.GENERATED_LINKS)
+    override suspend fun syncAllUserData(userId: String) {
+        // Sync Profile
+        fetchAndCacheUserProfile(userId)
 
-        return query.addSnapshotListener { snapshot, e ->
-            if (e != null) {
-                return@addSnapshotListener
+        // Sync Favorites
+        try {
+            val favoritesSnapshot = db.collection(Constants.USERS).document(userId)
+                .collection(Constants.FAVORITE_DEALS).get().await()
+            val favorites = favoritesSnapshot.toObjects<FavoriteDealEntity>()
+            favorites.forEach { favoriteDealDao.insert(it) }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Sync Generated Links
+        try {
+            val linksSnapshot = db.collection(Constants.USERS).document(userId)
+                .collection(Constants.GENERATED_LINKS).get().await()
+            val links = linksSnapshot.toObjects<GeneratedLinkEntity>()
+            links.forEach { generatedLinkDao.insert(it) }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    override suspend fun fetchAndCacheUserProfile(userId: String) {
+        try {
+            val snapshot = db.collection(Constants.USERS).document(userId).get().await()
+            if (snapshot.exists()) {
+                val profile = snapshot.toObject<UserProfileEntity>()
+                if (profile != null) {
+                    userProfileDao.upsert(profile.copy(uid = snapshot.id))
+                }
             }
-            if (snapshot == null) return@addSnapshotListener
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
+    override fun listenForGeneratedLinkChanges(userId: String): ListenerRegistration {
+        val query = db.collection(Constants.USERS).document(userId).collection(Constants.GENERATED_LINKS)
+        return query.addSnapshotListener { snapshot, e ->
+            if (e != null) return@addSnapshotListener
+            if (snapshot == null) return@addSnapshotListener
             for (docChange in snapshot.documentChanges) {
                 scope.launch {
                     val link = docChange.document.toObject<GeneratedLinkEntity>()
@@ -120,12 +143,6 @@ class UserDataRepositoryImpl(
         generatedLinkDao.insert(link)
         db.collection(Constants.USERS).document(userId).collection(Constants.GENERATED_LINKS)
             .add(link).await()
-    }
-
-    override suspend fun migrateLocalUserData(fromUid: String, toUid: String) {
-        favoriteDealDao.updateUserId(fromUid, toUid)
-        generatedLinkDao.updateUserId(fromUid, toUid)
-        userProfileDao.updateUserId(fromUid, toUid)
     }
 
     override suspend fun clearAllLocalUserData() {

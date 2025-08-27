@@ -29,9 +29,6 @@ class LinkViewModel(
         supportedStoreRepository.getStores()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // --- THIS IS THE FIX ---
-    // This flow now listens to the auth state. When the user changes,
-    // it automatically switches to the new user's generated links.
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val generatedLinks: StateFlow<List<GeneratedLinkEntity>> =
         authRepository.getAuthStateStream()

@@ -42,14 +42,6 @@ class AuthRepositoryImpl : AuthRepository {
         awaitClose { auth.removeAuthStateListener(authStateListener) }
     }
 
-    // SIMPLIFIED: This function now ONLY handles anonymous sign-in.
-    // No database writes happen here, removing any potential race condition.
-    override suspend fun signInAnonymouslyIfNeeded() {
-        if (auth.currentUser == null) {
-            auth.signInAnonymously().await()
-        }
-    }
-
     override fun startPhoneNumberVerification(
         phone: String,
         activity: Activity,
@@ -64,28 +56,9 @@ class AuthRepositoryImpl : AuthRepository {
         PhoneAuthProvider.verifyPhoneNumber(options)
     }
 
-    // This logic is already robust from our last iteration and remains the same.
-    override suspend fun signInWithPhoneAuthCredential(credential: PhoneAuthCredential): Pair<User, String?> {
-        val currentUser = auth.currentUser
-        val anonymousUid = if (currentUser?.isAnonymous == true) currentUser.uid else null
-
-        return try {
-            if (currentUser != null && currentUser.isAnonymous) {
-                val result = currentUser.linkWithCredential(credential).await()
-                val linkedUser = mapFirebaseUser(result.user) ?: throw IllegalStateException("User linking failed.")
-                Pair(linkedUser, anonymousUid)
-            } else {
-                val result = auth.signInWithCredential(credential).await()
-                val signedInUser = mapFirebaseUser(result.user) ?: throw IllegalStateException("Sign-in failed.")
-                Pair(signedInUser, null)
-            }
-        } catch (e: FirebaseAuthUserCollisionException) {
-            val result = auth.signInWithCredential(credential).await()
-            val existingUser = mapFirebaseUser(result.user) ?: throw IllegalStateException("Existing user sign-in failed after collision.")
-            Pair(existingUser, anonymousUid)
-        } catch (e: Exception) {
-            throw e
-        }
+    override suspend fun signInWithPhoneAuthCredential(credential: PhoneAuthCredential): User {
+        val result = auth.signInWithCredential(credential).await()
+        return mapFirebaseUser(result.user) ?: throw IllegalStateException("Sign-in failed to return a user.")
     }
 
     override suspend fun refreshUser() {
@@ -94,7 +67,6 @@ class AuthRepositoryImpl : AuthRepository {
 
     override suspend fun signOut() {
         auth.signOut()
-        signInAnonymouslyIfNeeded()
     }
 
     // The user profile creation is now handled by the ViewModel, but the update logic remains here.

@@ -23,6 +23,8 @@ class SearchRepositoryImpl : SearchRepository {
     private val apiKey = BuildConfig.API_KEY
     private val indexName = BuildConfig.INDEX_NAME
 
+    private val suggestionsIndexName = "${indexName}_query_suggestions"
+
     private val client = SearchClient(appId = appId, apiKey = apiKey)
     private val ioDispatcher = Dispatchers.IO
 
@@ -49,6 +51,35 @@ class SearchRepositoryImpl : SearchRepository {
             } catch (e: Exception) {
                 e.printStackTrace()
                 Pair(emptyList(), false)
+            }
+        }
+    }
+
+    override suspend fun getSearchSuggestions(query: String): List<String> {
+        return withContext(ioDispatcher) {
+            if (query.isBlank()) {
+                return@withContext emptyList()
+            }
+            try {
+                val result = client.search(
+                    searchMethodParams = SearchMethodParams(
+                        requests = listOf(
+                            SearchForHits(
+                                indexName = suggestionsIndexName, // Search the suggestions index
+                                query = query,
+                                hitsPerPage = 5 // Limit to 5 suggestions
+                            )
+                        )
+                    )
+                ).results.first()
+
+                // Extract the 'query' text from each suggestion hit
+                (result as SearchResponse).hits.mapNotNull {
+                    it.additionalProperties?.get("query")?.jsonPrimitive?.contentOrNull
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                emptyList()
             }
         }
     }
